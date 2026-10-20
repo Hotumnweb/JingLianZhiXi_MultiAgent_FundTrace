@@ -27,7 +27,17 @@ def record(name: str, ok: bool, detail: str, critical: bool = True) -> None:
 
 def check_dependencies() -> None:
     missing = []
-    for module in ("pandas", "neo4j", "langgraph", "requests", "streamlit", "dotenv"):
+    for module in (
+        "pandas",
+        "neo4j",
+        "langgraph",
+        "requests",
+        "streamlit",
+        "dotenv",
+        "plotly",
+        "networkx",
+        "psutil",
+    ):
         try:
             __import__(module)
         except Exception:  # noqa: BLE001

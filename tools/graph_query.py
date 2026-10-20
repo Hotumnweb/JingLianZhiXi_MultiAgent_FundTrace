@@ -372,3 +372,43 @@ def find_circular_loops(
 
     cycles.sort(key=lambda item: item["amount"], reverse=True)
     return cycles[:limit]
+
+
+def fetch_subgraph(account_ids: list[str], limit: int = 900) -> dict:
+    """拉取一批账户的 1 跳交易子图，用于平台资金网络可视化。
+
+    返回 {"nodes": [{"id", "tx_count"}], "edges": [{"src", "dst", "amount", "time"}], "truncated": bool}
+    """
+    ids = [str(account) for account in account_ids if account]
+    if not ids:
+        return {"nodes": [], "edges": [], "truncated": False}
+
+    with get_driver().session() as session:
+        result = session.run(
+            """
+            MATCH (a:Account)-[r:TRANSFER]->(b:Account)
+            WHERE a.id IN $ids OR b.id IN $ids
+            RETURN a.id AS src, b.id AS dst,
+                   r.amount AS amount, r.time AS time,
+                   a.tx_count AS src_tx, b.tx_count AS dst_tx
+            LIMIT $limit
+            """,
+            {"ids": ids, "limit": limit},
+        )
+        nodes: dict[str, dict] = {}
+        edges: list[dict] = []
+        for record in result:
+            src = record["src"]
+            dst = record["dst"]
+            nodes.setdefault(src, {"id": src, "tx_count": record["src_tx"] or 0})
+            nodes.setdefault(dst, {"id": dst, "tx_count": record["dst_tx"] or 0})
+            edges.append(
+                {
+                    "src": src,
+                    "dst": dst,
+                    "amount": round(float(record["amount"] or 0), 2),
+                    "time": str(record["time"] or ""),
+                }
+            )
+
+    return {"nodes": list(nodes.values()), "edges": edges, "truncated": len(edges) >= limit}

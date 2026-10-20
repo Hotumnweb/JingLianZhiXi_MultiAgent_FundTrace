@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from dataclasses import dataclass
@@ -98,6 +99,21 @@ def check_connection(timeout: int = 10) -> dict:
     return result
 
 
+def _result(config: LLMConfig, content: str, elapsed: float, data: dict) -> dict:
+    """统一整理推理结果与性能指标。"""
+    eval_count = int(data.get("eval_count") or 0)
+    eval_seconds = float(data.get("eval_duration") or 0) / 1e9
+    return {
+        "content": content,
+        "model": config.model,
+        "base_url": config.base_url,
+        "elapsed": round(elapsed, 2),
+        "eval_count": eval_count,
+        "prompt_eval_count": int(data.get("prompt_eval_count") or 0),
+        "tokens_per_second": round(eval_count / eval_seconds, 2) if eval_seconds else 0.0,
+    }
+
+
 def generate(
     prompt: str,
     system_prompt: str | None = None,
@@ -139,15 +155,68 @@ def generate(
     data = response.json()
 
     content = ((data.get("message") or {}).get("content") or "").strip()
-    eval_count = int(data.get("eval_count") or 0)
-    eval_seconds = float(data.get("eval_duration") or 0) / 1e9
+    return _result(config, content, elapsed, data)
 
-    return {
-        "content": content,
+
+def generate_stream(
+    prompt: str,
+    system_prompt: str | None = None,
+    on_token=None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> dict:
+    """流式调用 Ollama /api/chat，逐 token 回调，用于平台实时展示报告生成过程。
+
+    on_token(text) 每收到一段增量文本调用一次；最终返回指标与 generate() 一致。
+    """
+    config = load_llm_config()
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
         "model": config.model,
-        "base_url": config.base_url,
-        "elapsed": round(elapsed, 2),
-        "eval_count": eval_count,
-        "prompt_eval_count": int(data.get("prompt_eval_count") or 0),
-        "tokens_per_second": round(eval_count / eval_seconds, 2) if eval_seconds else 0.0,
+        "messages": messages,
+        "stream": True,
+        "keep_alive": config.keep_alive,
+        "options": {
+            "temperature": config.temperature if temperature is None else temperature,
+            "num_predict": config.max_tokens if max_tokens is None else max_tokens,
+            "num_ctx": config.num_ctx,
+        },
     }
+
+    started = time.perf_counter()
+    parts: list[str] = []
+    final_data: dict = {}
+
+    with requests.post(
+        f"{config.base_url}/api/chat",
+        json=payload,
+        timeout=config.timeout,
+        stream=True,
+    ) as response:
+        response.raise_for_status()
+        for raw_line in response.iter_lines(decode_unicode=True):
+            if not raw_line:
+                continue
+            try:
+                data = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            token = ((data.get("message") or {}).get("content") or "")
+            if token:
+                parts.append(token)
+                if on_token is not None:
+                    try:
+                        on_token(token)
+                    except Exception:  # noqa: BLE001 - 回调失败不影响生成
+                        pass
+            if data.get("done"):
+                final_data = data
+
+    elapsed = time.perf_counter() - started
+    return _result(config, "".join(parts).strip(), elapsed, final_data)
+

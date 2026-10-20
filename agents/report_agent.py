@@ -11,7 +11,7 @@
 防幻觉约束：账号、金额、时间只允许引用图查询结果，Prompt 中明确禁止编造。
 """
 
-from llms.remote_llm import generate
+from llms.remote_llm import generate, generate_stream
 from tools.graph_query import (
     find_circular_loops,
     find_fan_in,
@@ -23,6 +23,11 @@ from tools.report_writer import (
     save_evidence,
     save_report,
 )
+
+try:  # LangGraph 自定义流式输出（平台展示实时 token）
+    from langgraph.config import get_stream_writer
+except Exception:  # pragma: no cover
+    get_stream_writer = None
 
 SYSTEM_PROMPT = (
     "你是一名资深的公安反诈中心资金研判专家，熟悉电信网络诈骗资金流侦查、"
@@ -141,12 +146,39 @@ def report_agent_node(state: dict) -> dict:
 
     llm_status = "ok"
     llm_metrics: dict | None = None
+    writer = None
+    if get_stream_writer is not None:
+        try:
+            writer = get_stream_writer()
+        except Exception:  # noqa: BLE001 - 非流式调用场景下拿不到 writer
+            writer = None
+
     try:
         logs.append("[ReportAgent] 正在调用 Ollama 生成研判报告（本地 CPU 约需 2~4 分钟）……")
-        llm_metrics = generate(
-            _build_prompt(_build_evidence(fast_io, gather, cycles), meta),
-            system_prompt=SYSTEM_PROMPT,
-        )
+        prompt = _build_prompt(_build_evidence(fast_io, gather, cycles), meta)
+
+        if writer is not None:
+            try:
+                writer({"type": "stage", "stage": "report_start"})
+            except Exception:  # noqa: BLE001
+                pass
+
+            def _on_token(text: str) -> None:
+                try:
+                    writer({"type": "token", "text": text})
+                except Exception:  # noqa: BLE001
+                    pass
+
+            llm_metrics = generate_stream(
+                prompt, system_prompt=SYSTEM_PROMPT, on_token=_on_token
+            )
+            try:
+                writer({"type": "stage", "stage": "report_done"})
+            except Exception:  # noqa: BLE001
+                pass
+        else:
+            llm_metrics = generate(prompt, system_prompt=SYSTEM_PROMPT)
+
         conclusion = llm_metrics["content"]
         if not conclusion:
             raise ValueError("模型返回内容为空")
@@ -162,6 +194,11 @@ def report_agent_node(state: dict) -> dict:
             evidence, meta, suspects, f"{type(exc).__name__}: {exc}"
         )
         logs.append(f"[ReportAgent][WARN] 大模型调用失败，已生成规则模板报告：{exc}")
+        if writer is not None:
+            try:
+                writer({"type": "stage", "stage": "report_fallback"})
+            except Exception:  # noqa: BLE001
+                pass
 
     report_path = save_report(
         case_id,

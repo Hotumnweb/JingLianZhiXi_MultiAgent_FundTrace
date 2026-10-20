@@ -5,6 +5,9 @@ langchain-openai
 langchain-neo4j
 neo4j
 pandas
+plotly
+networkx
+psutil
 python-dotenv
 requests
 streamlit
