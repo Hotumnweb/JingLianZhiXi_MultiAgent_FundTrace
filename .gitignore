@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 虚拟环境（本项目用 conda，环境不在项目目录内，这里只是兜底）
+.venv/
+venv/
+
+# 配置与密钥（只提交 .env.example）
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# 运行产物
+*.log
+*.tmp
+reports/
+.ipynb_checkpoints/
+data/synthetic_aml/Untitled.ipynb

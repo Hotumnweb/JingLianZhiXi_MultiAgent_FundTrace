@@ -1,0 +1,18 @@
+{
+  "dataset_name": "synthetic-aml-transaction-graphs-and-fraud-networks",
+  "version": "1.0.0",
+  "generated_at": "2026-09-23T11:23:11.137443Z",
+  "synthetic": true,
+  "license": "CC0-1.0",
+  "account_count": 3500,
+  "transaction_count": 42175,
+  "laundering_ring_count": 22,
+  "fraud_transaction_count": 175,
+  "fraud_rate_pct": 0.415,
+  "total_volume_usd": 51947276.07,
+  "fraud_volume_usd": 6525087.96,
+  "date_range": {
+    "start": "2025-01-01 00:14:12",
+    "end": "2025-06-30 23:53:30"
+  }
+}

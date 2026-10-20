@@ -1,0 +1,29 @@
+{
+  "accounts.csv": {
+    "account_id": "Unique fictional account identifier (e.g. ACC_00001). No connection to real institutions or individuals.",
+    "account_type": "Entity operational classification: Retail Consumer, Small Business, Merchant, or Corporate Treasury.",
+    "country_code": "Jurisdiction of account domicile (ISO alpha-2 code: US, GB, CA, CH, KY, CY, PA).",
+    "risk_rating": "Baseline Know-Your-Customer (KYC) compliance risk rating (Low, Medium, High).",
+    "open_date": "Date the fictional account was opened (YYYY-MM-DD).",
+    "is_synthetic_mule": "Boolean ground-truth indicator showing whether this account was designated as a synthetic money mule in a laundering network."
+  },
+  "transactions.csv": {
+    "transaction_id": "Unique transaction ledger identifier (e.g. TX_000001).",
+    "timestamp": "ISO 8601 timestamp of transaction settlement (YYYY-MM-DD HH:MM:SS).",
+    "sender_account_id": "Originating account foreign key referencing accounts.csv(account_id).",
+    "receiver_account_id": "Beneficiary account foreign key referencing accounts.csv(account_id).",
+    "amount_usd": "Fictional transfer amount in USD.",
+    "payment_method": "Payment rail: Wire Transfer, ACH, P2P Instant, Cash Deposit, or International Swift.",
+    "is_laundering": "Ground-truth benchmark indicator: True if part of an illicit money laundering pattern; False otherwise.",
+    "laundering_pattern": "Specific financial crime typology: Normal, Circular Loop, Fan-Out Smurfing, or Fan-In Aggregation.",
+    "ring_id": "Identifier of the laundering syndicate/ring referencing laundering_rings.csv, or 'NONE' for legitimate activity."
+  },
+  "laundering_rings.csv": {
+    "ring_id": "Unique identifier for the synthetic financial crime syndicate (e.g. RING_CYCLE_01, RING_SMURF_01).",
+    "pattern_type": "Typology topology: 'Circular Loop' (directed closed cycle) or 'Fan-Out Fan-In Smurfing' (structured star network).",
+    "cycle_length": "Number of directed hops in closed circular loop (0 for star-shaped smurfing structures).",
+    "member_count": "Total count of participating distinct accounts (originators, mules, and collectors).",
+    "total_volume_usd": "Aggregate initial illicit capital channeled through the syndicate structure, fictional USD.",
+    "member_accounts": "Comma-delimited sequence of participating account IDs."
+  }
+}
