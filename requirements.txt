@@ -1,5 +1,4 @@
-# 第一版依赖（安装命令）
-# pip install -r requirements.txt
+# 依赖安装：pip install -r requirements.txt
 # 跑通后建议执行：pip freeze > requirements.lock.txt 锁定版本
 langgraph
 langchain-openai
@@ -7,4 +6,5 @@ langchain-neo4j
 neo4j
 pandas
 python-dotenv
+requests
 streamlit

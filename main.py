@@ -4,10 +4,15 @@
 用法（必须从项目根目录运行）：
     conda activate fraud_agent
     cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
-    python main.py                          # 默认跑合成 AML 数据集（4.2 万条）
-    python main.py data/sample_flow.csv     # 跑第一版 100 条演示数据
+
+    python main.py                          # 默认 AML 数据集 + 本地 Ollama 报告
+    python main.py --no-report              # 只跑图分析，不调用大模型（断网/无模型时）
+    python main.py data/sample_flow.csv     # 换数据源（第一版 100 条演示数据）
+    python main.py --check-llm              # 只检查 Ollama 连通性和模型是否存在
 """
 
+import argparse
+import os
 import sys
 
 from langgraph.graph import END, StateGraph
@@ -69,17 +74,72 @@ def initial_state(
         "suspicious_accounts": [],
         "evidence": {},
         "conclusion": "",
+        "report_path": "",
+        "evidence_path": "",
+        "llm_status": "",
         "logs": [],
         "next_step": "",
     }
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="警链智析——多智能体电诈资金穿透研判系统（v0.3 本地/双机版）"
+    )
+    parser.add_argument(
+        "flow_file",
+        nargs="?",
+        default=DEFAULT_FLOW_FILE,
+        help=f"流水 CSV 路径，默认 {DEFAULT_FLOW_FILE}",
+    )
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="只跑解析 + 建图 + 图分析，不调用大模型（断网/无模型时使用）",
+    )
+    parser.add_argument(
+        "--check-llm",
+        action="store_true",
+        help="只检查 Ollama 连通性与模型是否存在，然后退出",
+    )
+    return parser.parse_args()
+
+
+def check_llm() -> int:
+    """检查 Ollama 服务与模型，返回进程退出码。"""
+    from llms.remote_llm import check_connection, load_llm_config
+
+    config = load_llm_config()
+    print(f"服务地址：{config.base_url}")
+    print(f"模型名称：{config.model}")
+    print(f"上下文长度：{config.num_ctx}；超时：{config.timeout} 秒")
+
+    info = check_connection()
+    if not info["ok"]:
+        print(f"[FAIL] Ollama 不可达：{info['error']}")
+        return 1
+
+    print(f"[OK] Ollama 可访问，本地模型：{info['models']}")
+    if not info["available"]:
+        print(f"[WARN] 没有找到模型 {config.model}，请检查 .env 或先 ollama pull")
+        return 2
+    print("[OK] 目标模型已就绪")
+    return 0
+
+
 def main() -> int:
     """命令行方式跑一次完整图流程。"""
-    flow_file = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_FLOW_FILE
+    args = parse_args()
+
+    if args.check_llm:
+        return check_llm()
+
+    if args.no_report:
+        os.environ["ENABLE_REPORT_AGENT"] = "0"
+        print("[提示] --no-report 已生效：本次不调用大模型，只输出图分析结果")
 
     try:
-        result = app.invoke(initial_state(flow_file=flow_file))
+        result = app.invoke(initial_state(flow_file=args.flow_file))
     except Exception as exc:  # noqa: BLE001 - 第一版把失败原因直接打印出来更方便排查
         print(f"\n[运行失败] {type(exc).__name__}: {exc}")
         print(
@@ -92,11 +152,21 @@ def main() -> int:
     for line in result.get("logs", []):
         print(line)
 
-    print("\n=== 可疑账户 ===")
-    print(result.get("suspicious_accounts") or "（本次未发现可疑账户）")
+    suspects = result.get("suspicious_accounts") or []
+    print(f"\n=== 可疑账户（共 {len(suspects)} 个）===")
+    print(suspects if suspects else "（本次未发现可疑账户）")
 
-    print("\n=== 研判结论 ===")
-    print(result.get("conclusion") or "（报告节点未启用，未生成大模型结论；图分析结果已在上方）")
+    print("\n=== 研判报告 ===")
+    conclusion = result.get("conclusion") or ""
+    if conclusion:
+        print(conclusion)
+    else:
+        print("（报告节点未启用，未生成报告；图分析结果已在上方）")
+
+    if result.get("report_path"):
+        print(f"\n报告文件：{result['report_path']}")
+        print(f"证据文件：{result.get('evidence_path', '-')}")
+        print(f"报告状态：{result.get('llm_status', '-')}（ok = 大模型生成，fallback = 规则模板兜底）")
     return 0
 
 

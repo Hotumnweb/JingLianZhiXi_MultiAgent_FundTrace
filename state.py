@@ -18,7 +18,10 @@ class CaseState(TypedDict):
     flow_file: str                          # 待解析的流水文件路径
     parsed_records: List[Dict[str, Any]]    # 解析后的结构化交易记录
     suspicious_accounts: List[str]          # 图分析得到的可疑账户
-    evidence: Dict[str, Any]                # 图分析证据：fast_io / gather / cycles
-    conclusion: str                         # 大模型生成的研判结论
+    evidence: Dict[str, Any]                # 图分析证据：fast_io / gather / cycles / summary
+    conclusion: str                         # 大模型（或规则模板）生成的研判报告正文
+    report_path: str                        # 研判报告 Markdown 落盘路径
+    evidence_path: str                      # 证据 JSON 落盘路径
+    llm_status: str                         # ok = 大模型生成；fallback = 规则模板兜底
     logs: List[str]                         # 执行日志（前端逐行展示）
     next_step: str                          # supervisor 的路由结果：parsing_agent / report_agent / END

@@ -15,6 +15,7 @@ from tools.graph_query import (
     find_circular_loops,
     find_fan_in,
     find_fast_in_fast_out,
+    graph_summary,
 )
 
 
@@ -31,12 +32,14 @@ def graph_agent_node(state: dict) -> dict:
     weak = {item["account"] for item in fast_io}
     suspects = sorted(strong | weak)
 
+    summary = graph_summary()
     evidence = {
         "fast_io": fast_io,
         "gather": gather,
         "cycles": cycles,
         "strong_count": len(strong),
         "weak_count": len(weak),
+        "summary": summary,
     }
 
     logs.append(
