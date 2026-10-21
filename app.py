@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""“警链智析”集成展示平台入口（第一台电脑：核心调度与编排工作台）。
+"""“警链智析”元智能体调度中枢（第一台电脑：Coordinator Node）。
+
+职责边界（与三机架构一致）：
+- 本机只做任务下发、调度决策、状态管理、日志与结果汇总；
+- 不运行大模型、不运行图数据库；
+- 大模型能力调用 Node2（GPU 算力中心，当前占位）；
+- 图数据与重工具调用 Node3（工具与图数据节点，当前部署在本机调试）。
 
 启动：
     conda activate fraud_agent
@@ -10,12 +16,11 @@
 import streamlit as st
 
 from workbench import services, theme
-
-# 目录名不能叫 platform（与 Python 标准库冲突），所以平台包命名为 workbench
 from workbench.pages import graph_page, metrics, orchestration, overview, reports_page, system_page
 
+# 目录名不能叫 platform（与 Python 标准库冲突），所以平台包命名为 workbench
 st.set_page_config(
-    page_title="警链智析 · 多智能体电诈资金穿透研判平台",
+    page_title="警链智析 · 元智能体调度中枢",
     page_icon="🛰️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -23,12 +28,12 @@ st.set_page_config(
 theme.inject_theme()
 
 PAGES = {
-    "作战总览": overview.render,
-    "智能体编排": orchestration.render,
-    "资金图谱": graph_page.render,
+    "调度总览": overview.render,
+    "元智能体调度": orchestration.render,
+    "图数据与工具": graph_page.render,
     "规则与指标": metrics.render,
-    "报告中心": reports_page.render,
-    "节点与安全": system_page.render,
+    "研判报告": reports_page.render,
+    "节点与工具": system_page.render,
 }
 
 with st.sidebar:
@@ -36,7 +41,7 @@ with st.sidebar:
         "<div style='font-size:19px;font-weight:800;color:#7dd3fc;letter-spacing:1px;'>"
         "警链智析</div>"
         "<div style='font-size:11px;color:#64748b;margin-bottom:6px;'>"
-        "多智能体电诈资金图谱研判平台</div>",
+        "元智能体调度中枢 · Node1</div>",
         unsafe_allow_html=True,
     )
     page = st.radio(
@@ -48,30 +53,19 @@ with st.sidebar:
     st.divider()
 
     for node in services.node_status():
-        tone = "ok" if node["status"] == "online" else ("warn" if node["status"] == "warn" else "danger")
+        tone = {
+            "online": "ok",
+            "warn": "warn",
+            "placeholder": "muted",
+        }.get(node["status"], "danger")
         st.markdown(
             theme.pill(f"NODE {node['index']} · {node['role']}", tone),
             unsafe_allow_html=True,
         )
-
-    st.divider()
-    st.caption(f"部署模式：{services.deployment_mode()}")
-    st.caption("平台版本：v0.4 集成展示平台")
-    st.caption(f"当前时间：{theme.now_text()}")
-    if st.button("刷新状态", width="stretch"):
+    st.caption("Node2：Qwen3-4B 微调 + Qwen-Agent 待接入")
+    if st.button("刷新节点状态", width="stretch"):
         st.rerun()
 
-theme.hero(
-    title="“警链智析”——面向电诈资金图谱的自主协同智能体",
-    subtitle="第一台电脑 · 核心调度与编排工作台 | 多智能体编排 · 图计算 · 本地大模型 · 全离线部署",
-    badges=[
-        "全离线部署",
-        "多智能体协同",
-        "Neo4j 图计算",
-        "本地大模型",
-        "实时编排可视化",
-        "审计与断网自证",
-    ],
-)
+theme.hero(title="警链智析 · 元智能体调度中枢")
 
 PAGES[page]()

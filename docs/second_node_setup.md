@@ -72,14 +72,20 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\second_node_setup.ps1
 ```
 
-### 2.4 拉取模型
+### 2.4 拉取基座模型并微调
 
 ```powershell
-ollama pull qwen2.5:7b-instruct-q4_K_M
+ollama pull qwen3:4b
 ollama list
 ```
 
-模型名以 `ollama list` 的实际输出为准；若拉取的是别的 tag，请同步修改第一台 `.env` 里的 `OLLAMA_MODEL`。
+- `qwen3:4b` 是基座模型，后续用资金分析数据微调（LoRA/QLoRA），导出 GGUF 后通过
+  `ollama create qwen3-4b-fraud -f Modelfile` 导入为自定义模型；
+- 微调后的模型名以 `ollama list` 为准，第一台 `.env` 的 `OLLAMA_MODEL` 要填这个名称；
+- **Qwen-Agent 运行在第二台**：它负责接收第一台下发的任务、拆解任务、多轮调用工具并汇总结果，
+  第一台不需要安装 Qwen-Agent，只通过 HTTP 调用第二台的 Ollama 接口。
+
+模型名以 `ollama list` 的实际输出为准；若拉取或导入的是别的 tag，请同步修改第一台 `.env` 里的 `OLLAMA_MODEL`。
 
 ---
 
@@ -93,11 +99,11 @@ Get-NetTCPConnection -LocalPort 11434 -State Listen
 curl http://127.0.0.1:11434
 
 # 3) 显卡是否被 Ollama 使用（发一次请求后看 PROCESSOR 一列应为 GPU）
-ollama run qwen2.5:7b-instruct-q4_K_M "你好"
+ollama run qwen3:4b "你好"
 ollama ps
 ```
 
-`ollama ps` 正常应显示 `PROCESSOR` 为 `100% GPU`，`SIZE` 约 5~6GB。
+`ollama ps` 正常应显示 `PROCESSOR` 为 `100% GPU`，`SIZE` 约 3~4GB（Qwen3-4B 量化后）。
 如果显示 `100% CPU`，说明显存不够或驱动异常，需要检查 `nvidia-smi` 和驱动版本。
 
 ---
@@ -111,7 +117,7 @@ conda activate fraud_agent
 cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
 
 $env:OLLAMA_BASE_URL = 'http://192.168.50.2:11434'
-$env:OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'
+$env:OLLAMA_MODEL = '你的Qwen3-4B微调模型名'
 python scripts/check_llm.py
 ```
 
@@ -121,7 +127,7 @@ python scripts/check_llm.py
 
 ```env
 OLLAMA_BASE_URL=http://192.168.50.2:11434
-OLLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
+OLLAMA_MODEL=你的Qwen3-4B微调模型名
 ENABLE_REPORT_AGENT=1
 ```
 
@@ -152,18 +158,20 @@ python main.py
 4. 断网自证：拔掉外网 / 关闭 Wi-Fi，`ping 8.8.8.8` 不通，`ping 192.168.50.2` 通；
 5. 运行 `streamlit run app.py`，展示：图分析证据 → 可疑账户 → 大模型研判报告 → 下载报告；
 6. 备用方案：如果 GPU 节点临时故障，把 `.env` 改回本机 `127.0.0.1` 走本地模型，
-   或在界面取消勾选“启用报告节点”，系统仍能输出图分析结果（不会白屏/崩溃）。
+   或在平台勾选“仅执行图工具分析（不调用 AI）”，系统仍能输出图分析结果。
 
 ---
 
-## 六、第二阶段“本地先行”说明（当前状态）
+## 六、“本地先行”与 Node2 目标状态
 
-在第二台到货前，第一台已经用本地 Ollama（CPU）跑通全程：
-
-- 模型：`qwen2.5:7b-instruct`（Q4_K_M，4.7GB）存放在 `E:\models`；
-- 服务：`OLLAMA_HOST=0.0.0.0`，第一台本地 `http://127.0.0.1:11434`；
-- CPU 推理约 **9~13 tok/s**，生成一份报告约 **2~4 分钟**（可作为答辩“离线可用”的保底演示）；
-- 本地模式与远程模式代码完全一致，切换只改 `.env` 两行。
+- **Node2 目标形态**：Qwen3-4B 基座 + 资金分析数据微调 + Qwen-Agent + Ollama，
+  元智能体运行在 Node2，第一台通过 HTTP 多轮调用；
+- **开发调试现状**：第二台到货前，第一台用本地 Ollama（CPU）跑通全链路：
+  - 模型：`qwen2.5:7b-instruct`（Q4_K_M，4.7GB）存放在 `E:\models`；
+  - 服务：`OLLAMA_HOST=0.0.0.0`，第一台本地 `http://127.0.0.1:11434`；
+  - CPU 推理约 **9~13 tok/s**，生成一份报告约 **2~4 分钟**；
+- 本地模式与远程模式代码完全一致，Node2 接入后只改 `.env` 两行；
+- 平台“节点与工具”页会把 Node2 显示为“占位”，接入成功后自动变为“在线”。
 
 **为什么先做本地跑通**：第二台到货后网络/防火墙/模型环境都可能需要调试，
 先把业务链路和报告生成逻辑在本地验证完，第二台只需要替换地址，风险最低。

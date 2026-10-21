@@ -29,7 +29,6 @@ AUDIT_LOG = AUDIT_DIR / "audit.jsonl"
 DEFAULT_NODE_TARGETS = {
     "node2": "192.168.50.2",
     "node3": "192.168.50.3",
-    "node4": "192.168.50.4",
 }
 
 
@@ -343,61 +342,35 @@ def local_ipv4() -> list[str]:
 
 
 def node_status() -> list[dict]:
-    """四节点健康状态（第一台本机 / 第二台推理 / 第三台图库审计 / 第四台演示）。"""
+    """三节点状态：Node1 调度中心 / Node2 GPU 算力（占位） / Node3 工具与图数据。"""
     hostname = socket.gethostname()
+    targets = node_targets()
     nodes = [
         {
             "id": "node1",
             "index": "01",
-            "name": "核心调度与编排工作台",
+            "name": "调度中心",
             "role": "核心调度与编排",
-            "role_en": "Controller",
+            "role_en": "Coordinator",
             "endpoint": f"{hostname} / 本机",
             "status": "online",
             "latency_ms": 0,
-            "detail": "LangGraph · Streamlit · pandas · 平台服务层",
-        }
+            "detail": "LangGraph Supervisor · 任务调度 · 调用日志",
+        },
+        {
+            "id": "node2",
+            "index": "02",
+            "name": "GPU 算力中心",
+            "role": "GPU 推理与算力",
+            "role_en": "Inference",
+            "endpoint": f"{targets['node2']}:11434（规划）",
+            "status": "placeholder",
+            "latency_ms": 0,
+            "detail": "待接入：Qwen3-4B 微调 + Qwen-Agent + Ollama",
+        },
     ]
 
-    # 第二台：Ollama 推理节点（当前可能是本地 CPU 模拟）
-    try:
-        from llms.remote_llm import check_connection, load_llm_config
-
-        config = load_llm_config()
-        started = time.perf_counter()
-        info = check_connection(timeout=3)
-        latency = (time.perf_counter() - started) * 1000
-        is_local = "127.0.0.1" in config.base_url or "localhost" in config.base_url
-        status = "online" if info.get("ok") and info.get("available") else ("warn" if info.get("ok") else "offline")
-        nodes.append(
-            {
-                "id": "node2",
-                "index": "02",
-                "name": "GPU 推理与算力节点",
-                "role": "GPU 推理与算力",
-                "role_en": "Inference",
-                "endpoint": config.base_url + ("（本地 CPU 调试）" if is_local else "（内网 GPU 节点）"),
-                "status": status,
-                "latency_ms": latency,
-                "detail": f"模型：{config.model}",
-            }
-        )
-    except Exception as exc:  # noqa: BLE001
-        nodes.append(
-            {
-                "id": "node2",
-                "index": "02",
-                "name": "GPU 推理与算力节点",
-                "role": "GPU 推理与算力",
-                "role_en": "Inference",
-                "endpoint": os.getenv("OLLAMA_BASE_URL", "未配置"),
-                "status": "offline",
-                "latency_ms": 0,
-                "detail": f"{type(exc).__name__}: {exc}",
-            }
-        )
-
-    # 第三台：Neo4j 图数据引擎与审计节点
+    # 第三台：工具与图数据节点（当前开发环境部署在本机）
     try:
         from tools.graph_query import graph_summary
 
@@ -408,13 +381,16 @@ def node_status() -> list[dict]:
             {
                 "id": "node3",
                 "index": "03",
-                "name": "图数据引擎与审计节点",
-                "role": "图数据与安全审计",
-                "role_en": "Database & Audit",
-                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+                "name": "工具与图数据节点",
+                "role": "工具执行与图数据",
+                "role_en": "Tool & Graph",
+                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + "（本机调试）",
                 "status": "online",
                 "latency_ms": latency,
-                "detail": f"{summary.get('accounts', 0)} 个账户 / {summary.get('transfers', 0)} 条转账",
+                "detail": (
+                    f"Neo4j · pandas 解析 · "
+                    f"{summary.get('accounts', 0)} 账户 / {summary.get('transfers', 0)} 转账"
+                ),
             }
         )
     except Exception as exc:  # noqa: BLE001
@@ -422,46 +398,60 @@ def node_status() -> list[dict]:
             {
                 "id": "node3",
                 "index": "03",
-                "name": "图数据引擎与审计节点",
-                "role": "图数据与安全审计",
-                "role_en": "Database & Audit",
-                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+                "name": "工具与图数据节点",
+                "role": "工具执行与图数据",
+                "role_en": "Tool & Graph",
+                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + "（本机调试）",
                 "status": "offline",
                 "latency_ms": 0,
                 "detail": f"{type(exc).__name__}: {exc}",
             }
         )
 
-    # 第四台：演示汇报终端
-    nodes.append(
-        {
-            "id": "node4",
-            "index": "04",
-            "name": "演示汇报与终端控制",
-            "role": "演示与终端控制",
-            "role_en": "Presentation",
-            "endpoint": "浏览器客户端 / HDMI 大屏",
-            "status": "online",
-            "latency_ms": 0,
-            "detail": "当前访问终端 · Streamlit 前端",
-        }
-    )
     return nodes
 
 
+def debug_inference_status() -> dict:
+    """开发调试推理服务：Node2 未接入时，本机 Ollama 临时承担报告生成。"""
+    result = {
+        "ok": False,
+        "base_url": os.getenv("OLLAMA_BASE_URL", ""),
+        "model": os.getenv("OLLAMA_MODEL", ""),
+        "latency_ms": None,
+        "error": "",
+    }
+    try:
+        from llms.remote_llm import check_connection, load_llm_config
+
+        config = load_llm_config()
+        started = time.perf_counter()
+        info = check_connection(timeout=3)
+        result.update(
+            {
+                "ok": bool(info.get("ok") and info.get("available")),
+                "base_url": config.base_url,
+                "model": config.model,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+                "error": info.get("error", ""),
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        result["error"] = f"{type(exc).__name__}: {exc}"
+    return result
+
+
 def deployment_mode() -> str:
-    """当前是单机联调还是双机部署。"""
+    """当前运行模式：开发调试 / 三机内网。"""
     base_url = os.getenv("OLLAMA_BASE_URL", "")
     if "127.0.0.1" in base_url or "localhost" in base_url:
-        return "单机联调模式（本地 Ollama 模拟 GPU 节点）"
-    return "双机内网模式（GPU 推理节点已接入）"
+        return "开发调试模式：Node2 占位，本机 Ollama 临时推理"
+    return "三机内网模式：Node2 GPU 节点已接入"
 
 
 def node_targets() -> dict:
     return {
         "node2": os.getenv("NODE2_TARGET_IP", DEFAULT_NODE_TARGETS["node2"]),
         "node3": os.getenv("NODE3_TARGET_IP", DEFAULT_NODE_TARGETS["node3"]),
-        "node4": os.getenv("NODE4_TARGET_IP", DEFAULT_NODE_TARGETS["node4"]),
     }
 
 
@@ -509,7 +499,7 @@ def external_network_check(timeout: float = 1.5) -> dict:
 
 
 # ----------------------------------------------------------------------------
-# 审计日志（第三台节点的本地替身，接入 Wireshark 后可替换）
+# 调度日志（Node1 记录任务下发/完成/失败、外网检测等事件）
 # ----------------------------------------------------------------------------
 def audit_event(kind: str, message: str, extra: dict | None = None) -> None:
     ensure_dirs()

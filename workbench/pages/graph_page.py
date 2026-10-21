@@ -7,12 +7,12 @@ from workbench import graph_view, services, theme
 
 
 def render() -> None:
-    theme.section("资金图谱", "基于 Neo4j 交易边的可疑账户关系网络（1 跳子图）")
+    theme.section("图数据与工具", "Node3 · Neo4j 图数据库 + Cypher 查询")
 
     payload = services.latest_evidence()
     summary = services.evidence_summary(payload)
     if not payload:
-        st.info("还没有图分析结果，请先到“智能体编排”启动一次分析。")
+        st.info("还没有图分析结果，请先到“元智能体调度”下发一次任务。")
         return
 
     control_cols = st.columns([2, 1, 1, 1])
@@ -82,7 +82,7 @@ def render() -> None:
     theme.section("可疑账户证据强度排行", "按归集上游数 / 环形参与 / 快进快出命中综合评分")
     st.dataframe(risk[:20], width="stretch", hide_index=True)
 
-    with st.expander("在 Neo4j Browser 中复核（现场演示用 Cypher）", expanded=False):
+    with st.expander("Neo4j 复核查询", expanded=False):
         st.code(
             """// 查看当前图谱规模
 MATCH (n:Account) RETURN count(n);

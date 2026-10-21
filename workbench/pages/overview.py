@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""总览大屏：KPI、四节点拓扑、图规则命中、最近研判。"""
+"""调度总览：集群状态、数据分析结果、最近一次研判。"""
 
 import streamlit as st
 
@@ -15,46 +15,51 @@ def render() -> None:
     nodes = services.node_status()
     risk = services.risk_rows(payload)
 
-    theme.section("作战总览", "四节点拓扑 · 数据画像 · 图规则命中 · 最近一次研判")
+    theme.section("调度总览", "元智能体运行状态 · 三节点集群 · 数据分析结果")
 
-    speed = f"{report['tok_s']} tok/s" if report and report.get("tok_s") else "—"
     kpis = [
         ("交易流水", f"{profile['transactions']:,}", "合成 AML 数据集（USD）", theme.ACCENT),
-        ("图账户节点", f"{graph.get('accounts', 0):,}", "Neo4j :Account", theme.PURPLE),
-        ("可疑账户", summary["suspects"] if payload else "—", f"强证据 {summary['strong']} / 辅助 {summary['weak']}", theme.RED),
-        ("洗钱团伙命中", "22/22", "离线评测 · 团伙级召回", theme.GOLD),
-        ("强证据精确率", "100%", "61/61 命中（评测）", theme.GREEN),
-        ("本地推理速度", speed, "qwen2.5:7b-instruct（CPU 调试）" if "本地" in services.deployment_mode() else "GPU 节点", theme.ACCENT),
+        ("图账户节点", f"{graph.get('accounts', 0):,}", "Node3 · Neo4j", theme.PURPLE),
+        ("可疑账户", summary["suspects"] if payload else "—", "等待任务执行" if not payload else "强证据优先", theme.RED),
+        ("归集账户", summary["gather"] if payload else "—", "多层归集", theme.GOLD),
+        ("环形转账链", summary["cycles"] if payload else "—", "闭环资金链", theme.GREEN),
+        ("快进快出", summary["fast_io"] if payload else "—", "卡农过渡账户", theme.ACCENT),
     ]
     cols = st.columns(6)
     for col, (label, value, hint, accent) in zip(cols, kpis):
         col.markdown(theme.kpi_card(label, value, hint, accent), unsafe_allow_html=True)
 
-    theme.section("四节点部署拓扑", services.deployment_mode())
-    node_cols = st.columns(4)
+    theme.section("三节点集群", "Node1 调度 · Node2 算力（占位） · Node3 工具与图数据")
+    node_cols = st.columns(3)
     for col, node in zip(node_cols, nodes):
         col.markdown(theme.node_card(node), unsafe_allow_html=True)
     targets = services.node_targets()
     st.markdown(
         theme.pill(
-            f"规划内网地址：Node2 {targets['node2']} · Node3 {targets['node3']} · Node4 {targets['node4']}",
+            f"内网规划：Node2 {targets['node2']} · Node3 {targets['node3']}",
             "muted",
         ),
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="jz-note">Node2 接入前，第一台使用内置 LangGraph 调度器和本机 Ollama 完成开发联调；'
+        "Node2 接入后，任务拆解、多轮 AI 调用由 Qwen3-4B + Qwen-Agent 元智能体执行。</div>",
         unsafe_allow_html=True,
     )
 
     left, right = st.columns([1, 1])
     with left:
-        theme.section("图规则命中分布", "强证据：多层归集 + 环形转账；辅助证据：快进快出")
+        theme.section("图规则命中分布", "Node3 工具执行结果")
         st.plotly_chart(graph_view.rule_bar_figure(summary), width="stretch")
     with right:
-        theme.section("证据强度排行", "按归集上游数 / 环形参与 / 快进快出命中综合打分")
+        theme.section("证据强度排行", "归集上游数 / 环形参与 / 快进快出综合评分")
         st.plotly_chart(graph_view.risk_bar_figure(risk), width="stretch")
 
-    theme.section("最近一次研判", "报告与证据自动落盘到 reports/，可在“报告中心”下载")
+    theme.section("最近一次研判")
     if not report:
         st.markdown(
-            '<div class="jz-note">暂无研判报告。请到“智能体编排”执行一次完整分析。</div>',
+            '<div class="jz-note">暂无研判报告。到“元智能体调度”下发一次任务后，'
+            "报告与证据会自动汇总到这里。</div>",
             unsafe_allow_html=True,
         )
         return

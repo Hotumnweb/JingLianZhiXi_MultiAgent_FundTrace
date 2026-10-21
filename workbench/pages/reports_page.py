@@ -9,11 +9,11 @@ from workbench import services, theme
 
 
 def render() -> None:
-    theme.section("报告中心", "每次运行的研判报告与证据 JSON 自动归档，支持预览与下载")
+    theme.section("研判报告", "元智能体输出汇总 · 报告与证据自动归档")
 
     items = services.report_index()
     if not items:
-        st.info("暂无报告。请到“智能体编排”执行一次完整分析。")
+        st.info("暂无报告。请到“元智能体调度”下发一次完整任务。")
         return
 
     selected_name = st.selectbox(

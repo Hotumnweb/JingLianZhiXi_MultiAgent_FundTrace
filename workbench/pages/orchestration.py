@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""智能体编排控制台：实时阶段进度、调度日志、流式报告。"""
+"""元智能体调度台：任务下发、阶段进度、调度日志、流式报告。"""
 
 import time
 from pathlib import Path
 
 import streamlit as st
 
-from llms.remote_llm import load_llm_config, report_agent_enabled
+from llms.remote_llm import report_agent_enabled
 from workbench import services, theme
 from workbench.runner import STAGES, iter_pipeline
 
@@ -21,18 +21,22 @@ def _stage_states(done: set[str]) -> dict[str, str]:
 
 
 def render() -> None:
-    config = load_llm_config()
-    theme.section(
-        "智能体编排控制台",
-        "Supervisor 调度 → 流水解析 → 账户关联 → 研判报告，全过程实时可视化",
+    theme.section("元智能体调度", "任务下发 → 调度决策 → 工具调用 → 结果汇总")
+
+    st.markdown(
+        '<div class="jz-note"><b>调用链：</b>Node1 调度中心 → Node2 GPU 算力中心'
+        "（Qwen3-4B 微调 + Qwen-Agent，待接入）↔ Node3 工具与图数据节点"
+        "（Neo4j / pandas）。Node2 接入前，本机 Ollama 仅作为开发调试的临时推理服务。</div>",
+        unsafe_allow_html=True,
     )
 
+    debug = services.debug_inference_status()
     left, right = st.columns([1.05, 1.95])
 
     with left:
-        st.markdown("#### 任务输入")
+        st.markdown("#### 任务下发")
         dataset = st.selectbox(
-            "数据源",
+            "数据源（Node3 工具读取）",
             options=list(DATASETS.keys()),
             format_func=lambda path: DATASETS.get(path, path),
         )
@@ -43,42 +47,45 @@ def render() -> None:
         )
         flow_file = custom_path.strip() or dataset
         instruction = st.text_area(
-            "侦查指令",
+            "侦查任务描述",
             value="分析这批流水，找出可疑账户并生成研判结论",
             height=90,
         )
         enable_report = st.toggle(
-            "启用大模型研判报告（Ollama）",
+            "启用 AI 研判报告",
             value=report_agent_enabled(),
-            help="关闭后只跑解析 + 图分析，适合断网/无模型时快速演示",
+            help="Node2 接入前由本机 Ollama 承担；关闭后只执行图工具分析",
         )
-        is_local = "127.0.0.1" in config.base_url or "localhost" in config.base_url
-        st.markdown(
-            f"""
-            <div class="jz-note">
-              模型：<b>{theme.esc(config.model)}</b><br>
-              服务：{theme.esc(config.base_url)}<br>
-              {"本地 CPU 推理：报告生成约 2~4 分钟" if is_local else "GPU 节点推理：报告生成约数十秒"}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        run_full = st.button("🚀 启动全链路分析", type="primary", width="stretch")
-        run_graph_only = st.button("仅跑图分析（不调大模型）", width="stretch")
+
+        if debug["ok"]:
+            st.markdown(
+                theme.pill(f"调试推理可用：{debug['model']}", "ok"),
+                unsafe_allow_html=True,
+            )
+            st.caption(f"{debug['base_url']} · Node2 接入后自动切换")
+        else:
+            st.markdown(
+                theme.pill("调试推理不可用：报告将降级为规则模板", "warn"),
+                unsafe_allow_html=True,
+            )
+            st.caption(debug.get("error", ""))
+
+        run_full = st.button("下发任务并执行", type="primary", width="stretch")
+        run_graph_only = st.button("仅执行图工具分析（不调用 AI）", width="stretch")
 
     with right:
         stage_box = st.empty()
         stage_box.markdown(
             theme.pipeline_stages(STAGES, _stage_states(set())), unsafe_allow_html=True
         )
-        progress = st.progress(0.0, text="等待启动")
+        progress = st.progress(0.0, text="等待任务")
         status_line = st.empty()
         log_box = st.empty()
         token_box = st.empty()
 
     if not (run_full or run_graph_only):
         st.markdown(
-            '<div class="jz-note">点击左侧按钮启动分析。想快速看效果，用“仅跑图分析”。</div>',
+            '<div class="jz-note">下发任务后，这里会实时显示调度阶段、工具调用日志和 AI 输出。</div>',
             unsafe_allow_html=True,
         )
         return
@@ -92,7 +99,7 @@ def render() -> None:
     final_state: dict = {}
     started = time.perf_counter()
     services.audit_event(
-        "pipeline",
+        "task",
         "start",
         {"flow_file": flow_file, "enable_report": enable_report},
     )
@@ -136,13 +143,13 @@ def render() -> None:
                 final_state = payload
 
         refresh_stages()
-        progress.progress(1.0, text="全链路完成")
+        progress.progress(1.0, text="任务完成")
         elapsed = time.perf_counter() - started
-        status_line.success(f"分析完成，用时 {elapsed:.1f} 秒")
+        status_line.success(f"任务完成，用时 {elapsed:.1f} 秒")
         log_box.code("\n".join(logs[-120:]) if logs else "（无日志）", language="text")
         token_box.empty()
         services.audit_event(
-            "pipeline",
+            "task",
             "finish",
             {
                 "flow_file": flow_file,
@@ -151,11 +158,11 @@ def render() -> None:
                 "llm_status": final_state.get("llm_status", ""),
             },
         )
-    except Exception as exc:  # noqa: BLE001 - 前端展示错误，同时写入审计日志
-        progress.progress(1.0, text="运行失败")
-        status_line.error(f"运行失败：{type(exc).__name__}: {exc}")
+    except Exception as exc:  # noqa: BLE001 - 前端展示错误，同时写入调度日志
+        progress.progress(1.0, text="任务失败")
+        status_line.error(f"任务失败：{type(exc).__name__}: {exc}")
         services.audit_event(
-            "pipeline",
+            "task",
             "failed",
             {"flow_file": flow_file, "error": f"{type(exc).__name__}: {exc}"},
         )
@@ -172,7 +179,7 @@ def render() -> None:
         "evidence": evidence,
     }
 
-    theme.section("本次运行结果", "可疑账户 · 证据构成 · 研判报告")
+    theme.section("任务结果", "可疑账户 · 证据构成 · 研判报告")
     cols = st.columns(5)
     cols[0].metric("可疑账户", len(suspects))
     cols[1].metric("归集账户", len(evidence.get("gather") or []))
@@ -180,13 +187,13 @@ def render() -> None:
     cols[3].metric("快进快出", len(evidence.get("fast_io") or []))
     cols[4].metric(
         "报告状态",
-        {"ok": "大模型", "fallback": "规则兜底"}.get(final_state.get("llm_status", ""), "未启用"),
+        {"ok": "AI 生成", "fallback": "规则兜底"}.get(final_state.get("llm_status", ""), "未启用"),
     )
 
     conclusion = final_state.get("conclusion") or ""
     if conclusion:
         if final_state.get("llm_status") == "fallback":
-            st.warning("大模型调用失败，已自动降级为规则模板报告。")
+            st.warning("AI 调用失败，已自动降级为规则模板报告。")
         with st.container(border=True):
             st.markdown(conclusion)
         report_path = final_state.get("report_path")
@@ -210,10 +217,10 @@ def render() -> None:
             )
         st.caption(f"报告：{report_path} ｜ 证据：{evidence_path}")
     else:
-        st.info("本次未启用报告节点，仅输出图分析结果（可疑账户见下）。")
+        st.info("本次未启用 AI 研判报告，仅输出图工具分析结果。")
 
-    with st.expander(f"可疑账户清单（{len(suspects)} 个，强证据优先）", expanded=False):
+    with st.expander(f"可疑账户清单（{len(suspects)} 个）", expanded=False):
         st.write(suspects)
 
-    with st.expander("执行日志（完整）", expanded=False):
+    with st.expander("调度日志（完整）", expanded=False):
         st.code("\n".join(logs), language="text")

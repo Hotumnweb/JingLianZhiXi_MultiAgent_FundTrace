@@ -194,17 +194,19 @@ def pill(text: str, tone: str = "info") -> str:
     return f'<span class="jz-pill" style="background:{bg};color:{color};">{esc(text)}</span>'
 
 
-def hero(title: str, subtitle: str, badges: list[str]) -> None:
-    """顶部标题区。"""
+def hero(title: str, subtitle: str = "", badges: list[str] | None = None) -> None:
+    """顶部标题区（只保留必要信息，不堆营销文案）。"""
     import streamlit as st
 
-    badge_html = "".join(pill(badge, "info") for badge in badges)
+    subtitle_html = f'<div class="jz-hero-sub">{esc(subtitle)}</div>' if subtitle else ""
+    badge_html = "".join(pill(badge, "info") for badge in (badges or []))
+    badges_html = f'<div class="jz-hero-badges">{badge_html}</div>' if badge_html else ""
     st.markdown(
         f"""
         <div class="jz-hero">
           <div class="jz-hero-title">{esc(title)}</div>
-          <div class="jz-hero-sub">{esc(subtitle)}</div>
-          <div class="jz-hero-badges">{badge_html}</div>
+          {subtitle_html}
+          {badges_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -236,10 +238,21 @@ def kpi_card(label: str, value, hint: str = "", accent: str = ACCENT) -> str:
 
 
 def node_card(node: dict) -> str:
-    tone = "ok" if node.get("status") == "online" else ("warn" if node.get("status") == "warn" else "danger")
-    status_text = {"online": "在线", "warn": "告警", "offline": "离线"}.get(node.get("status"), "未知")
+    status = node.get("status", "offline")
+    tone = {"online": "ok", "warn": "warn", "placeholder": "muted"}.get(status, "danger")
+    status_text = {
+        "online": "在线",
+        "warn": "告警",
+        "placeholder": "占位",
+        "offline": "离线",
+    }.get(status, "未知")
     latency = node.get("latency_ms")
-    latency_text = f"{latency:.0f} ms" if isinstance(latency, (int, float)) and latency > 0 else "本机"
+    if status == "placeholder":
+        latency_text = "待接入"
+    elif isinstance(latency, (int, float)) and latency > 0:
+        latency_text = f"{latency:.0f} ms"
+    else:
+        latency_text = "本机"
     return f"""
     <div class="jz-node">
       <div class="jz-node-head">

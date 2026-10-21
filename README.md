@@ -1,33 +1,46 @@
-# “警链智析”——面向电诈资金图谱的自主协同智能体
+# “警链智析”——面向电诈资金图谱的元智能体调度系统
 
 > 项目仓库：<https://github.com/Hotumnweb/JingLianZhiXi_MultiAgent_FundTrace>
-> 当前版本：**v0.4 集成展示平台版**（第一台电脑：核心调度与编排工作台）
-> 参赛方向：新一代信息技术 / 网络安全 / 公安院校特色 + AI 智能体 + 大模型
+> 当前版本：**v0.5 三机架构联调版**
+> 定位：用元智能体做诈骗资金数据分析，第一台是调度中心，第二台提供 GPU 算力，第三台提供工具与图数据。
 
-## 1. 项目一句话
+## 1. 三机架构
 
-在**断网环境**下，用多智能体自动完成“银行流水解析 → Neo4j 资金图谱构建 → 三类图规则分析 → 本地大模型生成《资金穿透研判报告》”的完整链路，并通过第一台电脑上的**集成展示平台**把智能体调度、图计算证据、检测指标和研判报告完整呈现给评委。
+```text
+┌───────────────────────────── Node1 调度中心（Coordinator）─────────────────────────────┐
+│ 职责：只做任务下发、调度决策、状态管理、调用日志、结果汇总；不运行大模型、不运行图数据库。 │
+│ 技术：LangGraph Supervisor · Streamlit 调度中枢 · 任务队列 · 证据/报告汇总                │
+└───────────────┬───────────────────────────────────────────────────┬──────────────────────┘
+                │ HTTP 11434（任务解析、多轮 AI 调用）                │ Bolt 7687 / 工具调用
+                ▼                                                   ▼
+┌───────────────────────────── Node2 GPU 算力中心 ─────────────────┐  ┌──────────── Node3 工具与图数据 ────────────┐
+│ 状态：占位（待接入）                                              │  │ Neo4j 图数据库（账户 / 转账 / Cypher 规则）  │
+│ 规划：Qwen3-4B 微调 + Qwen-Agent + Ollama，元智能体运行在此节点   │  │ pandas / pdfplumber 流水解析                 │
+│ 职责：任务拆解、多轮决策、调用工具、总结结果                      │  │ 可选轻量嵌入模型（RAG）                      │
+└───────────────────────────────────────────────────────────────────┘  └──────────────────────────────────────────────┘
+```
 
-## 2. 第一台电脑：集成展示平台（v0.4 核心交付）
+**调度逻辑**：第一台下发任务 → 第二台元智能体解析任务并反复调用（任务拆解/多轮决策）→
+调用第三台的数据与工具（Neo4j 查询、流水解析）→ 汇总结果回传第一台 → 第一台记录日志、
+归档报告、展示证据。
 
-第一台不再只是“跑脚本”，而是一个**深色大屏风格、离线可用**的展示平台（Streamlit + Plotly），把接口、数据、智能体、报告、审计集成在一起：
+**当前阶段**：第二台尚未到位，第一台用内置 LangGraph 调度器 + 本机 Ollama 完成开发联调；
+第二台接入后只需修改 `.env`，平台会自动切换为“内网 GPU 节点”。
 
-| 页面 | 展示内容 | 体现的技能点 |
-| :--- | :--- | :--- |
-| 🛰️ 作战总览 | 六项 KPI、四节点拓扑与健康状态、规则命中分布、证据强度排行、最近研判 | 平台集成、实时健康检查 |
-| 🤖 智能体编排 | 选择数据源与侦查指令、启动全链路、**阶段卡片实时点亮、调度日志滚动、报告逐 token 流式输出** | LangGraph 流式编排、实时可视化 |
-| 🕸️ 资金图谱 | 从 Neo4j 拉取可疑账户 1 跳子图，Plotly + NetworkX 力导向布局，环形链/归集账户明细 | 图数据库查询、图可视化 |
-| 📏 规则与指标 | 三条规则口径、当前命中数量、**现场重算精确率/召回率/团伙级召回** | 规则设计、离线评测 |
-| 📄 报告中心 | 历史报告预览、Markdown/证据 JSON 下载、证据明细表 | 报告归档、可复现 |
-| 🛡️ 节点与安全 | 四节点状态、本机环境、**外网连通性检测（断网自证）**、接口清单、审计事件流、Wireshark 接入说明 | 安全审计、工程规范 |
+## 2. 第一台：元智能体调度中枢（平台）
 
-**本地实测**：
-- 完整流式链路：**892 个 token 事件、7 个节点更新事件**，报告逐字出现在大屏上；
-- 本地 CPU（qwen2.5:7b-instruct）：全链路约 **4 分钟**（解析+图分析约 30 秒，报告生成约 3 分钟）；
-- Streamlit 六个页面（AppTest）全部加载无异常，真实启动 `HTTP 200`；
-- 报告：93 个可疑账户、四段式公安风格报告、金额单位 USD、严格按证据分类引用。
+平台是纯离线可用的深色调度中枢（Streamlit + Plotly），页面只保留实际岗位需要的内容：
 
-启动平台：
+| 页面 | 内容 |
+| :--- | :--- |
+| 调度总览 | 数据分析 KPI、三节点集群状态、图规则命中、最近一次研判 |
+| 元智能体调度 | 任务下发、阶段卡实时点亮、调度日志滚动、AI 报告逐 token 输出 |
+| 图数据与工具 | Node3 Neo4j 子图、环形链/归集明细、证据强度排行 |
+| 规则与指标 | 三条图规则口径、当前命中、现场重算精确率/召回率/团伙召回 |
+| 研判报告 | 报告预览、Markdown/证据 JSON 下载、证据明细 |
+| 节点与工具 | 三节点状态、接口与工具清单、Node2 接入计划、调度日志、断网自检 |
+
+启动：
 
 ```powershell
 conda activate fraud_agent
@@ -35,32 +48,30 @@ cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
 streamlit run app.py
 ```
 
-## 3. 系统架构（目标四机部署）
+本地实测：平台六页 AppTest 全部无异常；完整流式链路可产生 892 个 token 事件；
+本地 CPU 调试模式下，报告生成约 2~4 分钟（第二台 GPU 接入后会明显缩短）。
 
-```text
-Node1 核心调度与编排（本机/平台）   Node2 GPU 推理（Ollama）   Node3 图数据与审计（Neo4j + Wireshark）   Node4 演示汇报（浏览器大屏）
-        │                                  │                              │
-        ├── LangGraph Supervisor          ├── /api/chat 11434            ├── Bolt 7687
-        ├── parsing / graph / report      ├── qwen2.5-7b-instruct        ├── Cypher 规则 + 审计日志
-        └── Streamlit 集成展示平台  ──────┴──────────────────────────────┴── 报告中心 / 安全面板
-```
+## 3. 当前状态与演示数据
 
-当前阶段为**单机联调模式**：第一台同时承载平台、Neo4j，并用本地 Ollama（CPU）模拟 Node2；切换到第二台 GPU 节点只需改 `.env` 两行（见第 7 节）。
+- 第二台 GPU 节点：**占位**，目标地址 `192.168.50.2`，规划模型 Qwen3-4B 微调 + Qwen-Agent；
+- 第三台工具与图数据节点：开发调试阶段部署在本机（Neo4j + pandas），目标地址 `192.168.50.3`；
+- 为保证比赛现场由队员亲自操作演示，**报告、证据、调度日志和 Neo4j 图谱缓存已清空**；
+- 现场打开平台后，从“元智能体调度”下发任务即可重新建图、生成报告；
+- 需要清理时执行：`python scripts/reset_demo_data.py --graph`。
 
 ## 4. 目录结构
 
 ```text
 JingLianZhiXi_MultiAgent_FundTrace/
-├── app.py                       # 集成展示平台入口（导航 + 主题 + 页面分发）
-├── workbench/                   # 平台包（不叫 platform，避免与标准库冲突）
-│   ├── theme.py                 # 深色大屏 CSS / KPI 卡 / 节点卡 / 阶段卡
-│   ├── services.py              # 节点健康、数据画像、报告索引、审计日志、指标计算
-│   ├── runner.py                # 流式编排器（update + custom token 事件）
+├── app.py                       # 调度中枢入口（六页面导航）
+├── workbench/
+│   ├── theme.py                 # 深色大屏样式与组件
+│   ├── services.py              # 节点状态、报告索引、调度日志、指标计算
+│   ├── runner.py                # 流式编排器（阶段 + token 事件）
 │   ├── graph_view.py            # Plotly + NetworkX 资金网络图
 │   └── pages/                   # 六个页面
 ├── main.py                      # 命令行入口（--no-report / --check-llm）
-├── state.py
-├── llms/remote_llm.py           # Ollama 原生 API（生成 + 流式生成 + 健康检查）
+├── llms/remote_llm.py           # Ollama 原生 API（生成 / 流式生成 / 健康检查）
 ├── tools/
 │   ├── parse_flow.py            # 自动识别中文流水 / AML 数据集
 │   ├── graph_query.py           # 建图、三条规则、环检测、子图查询
@@ -68,29 +79,28 @@ JingLianZhiXi_MultiAgent_FundTrace/
 ├── agents/                      # parsing / graph / report 智能体
 ├── supervisor/supervisor_node.py
 ├── scripts/
+│   ├── reset_demo_data.py       # 清理报告/证据/缓存，可选清空 Neo4j
 │   ├── evaluate_on_synthetic_aml.py
 │   ├── check_llm.py
 │   ├── preflight_check.py
 │   ├── generate_sample_data.py
 │   └── second_node_setup.ps1
 ├── docs/
-│   ├── platform_guide.md        # 平台页面说明 + 现场演示脚本
-│   ├── second_node_setup.md     # 第二台部署手册
-│   └── sample_report.md
+│   ├── platform_guide.md        # 平台功能与现场演示脚本
+│   └── second_node_setup.md     # 第二台 GPU 节点部署手册
 ├── data/
 │   ├── sample_flow.csv          # 100 条演示数据
 │   └── synthetic_aml/           # 合成 AML 数据集（CC0）
-└── reports/                     # 运行产物（报告 + 证据 + 审计，git 忽略）
+└── reports/                     # 运行产物（报告 + 证据 + 调度日志，git 忽略）
 ```
 
 ## 5. 数据说明与合规
 
-- `data/synthetic_aml/transactions.csv`：42,175 条交易，2025-01-01 ~ 2025-06-30，金额单位 USD；
-- `accounts.csv`：3,500 个账户，132 个洗钱账户；`laundering_rings.csv`：22 个团伙（12 环形 + 10 集散式）；
-- 纯虚构合成数据（CC0-1.0），不含真实公民信息，可安全用于比赛演示；
+- `data/synthetic_aml/transactions.csv`：42,175 条交易，金额单位 USD；
+- 3,500 个账户，132 个洗钱账户；22 个团伙（12 环形 + 10 集散式）；
+- 纯虚构合成数据（CC0-1.0），不含真实公民信息；
 - **防标签泄漏**：`is_laundering / laundering_pattern / ring_id` 只在评测脚本读取，
-  智能体只能看到交易结构，避免“用答案破案”；
-- 报告与证据自动归档到 `reports/`，便于复核与答辩。
+  智能体只看到交易结构，避免“用答案破案”。
 
 ## 6. 图规则与实测指标
 
@@ -108,70 +118,56 @@ JingLianZhiXi_MultiAgent_FundTrace/
 | 强证据 + 辅助证据 | 93 个账户，76 个命中，精确率 **0.817**，召回率 0.576 |
 | 团伙级召回 | **22/22** 个洗钱团伙至少命中 1 个账户 |
 
-## 7. 运行与切换
-
-### 7.1 前置
-
-1. Neo4j 已启动（JDK 17，`localhost:7474` 可登录，密码与 `.env` 一致）；
-2. Ollama 已启动且 `ollama list` 有模型（当前为本地 `qwen2.5:7b-instruct`）；
-3. Python 环境安装依赖：`pip install -r requirements.txt`（新增 plotly / networkx / psutil）。
-
-### 7.2 常用命令
+## 7. 常用命令
 
 ```powershell
-python scripts/check_llm.py              # Ollama 连通性 + 最小推理 + tok/s
-python scripts/preflight_check.py       # 演示前一键自检
-python main.py                           # 命令行完整链路（含报告）
-python main.py --no-report               # 只跑图分析（断网/无模型）
-python scripts/evaluate_on_synthetic_aml.py
-streamlit run app.py                     # 启动集成展示平台
+streamlit run app.py                          # 启动调度中枢
+python main.py                                # 命令行完整链路（含 AI 报告）
+python main.py --no-report                    # 只跑图工具分析
+python scripts/check_llm.py                   # 检查调试推理服务
+python scripts/preflight_check.py             # 演示前自检
+python scripts/evaluate_on_synthetic_aml.py   # 规则评测
+python scripts/reset_demo_data.py --graph     # 清理演示缓存与图谱
 ```
 
-### 7.3 切换第二台 GPU 节点
+## 8. Node2 接入
 
-按 [docs/second_node_setup.md](docs/second_node_setup.md) 配置第二台后，改 `.env`：
+按 [docs/second_node_setup.md](docs/second_node_setup.md) 部署第二台后修改 `.env`：
 
 ```env
 OLLAMA_BASE_URL=http://192.168.50.2:11434
-OLLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
+OLLAMA_MODEL=你的Qwen3-4B微调模型名
 ```
 
 先验证再切：
 
 ```powershell
 $env:OLLAMA_BASE_URL = 'http://192.168.50.2:11434'
-$env:OLLAMA_MODEL = 'qwen2.5:7b-instruct-q4_K_M'
+$env:OLLAMA_MODEL = '你的Qwen3-4B微调模型名'
 python scripts/check_llm.py
 ```
 
-平台左上角 Node2 状态会自动从“本地 CPU 调试”变为“内网 GPU 节点”。
+平台“节点与工具”页的 Node2 状态会从“占位”切换为“在线”，任务拆解与多轮 AI 调用交给
+Node2 上的 Qwen-Agent 元智能体。
 
-## 8. 现场演示（建议 5~8 分钟）
+## 9. 现场演示（建议 5~8 分钟）
 
-1. **总览页**：说清四机分工、当前节点全部在线、22/22 团伙召回；
-2. **智能体编排页**：点击“启动全链路”，让评委看阶段卡片点亮、日志滚动、报告逐 token 生成；
-3. **资金图谱页**：展示环形链、归集账户和证据强度排行；
-4. **规则与指标页**：点“重新计算检测指标”，现场给出精确率/召回率；
-5. **报告中心**：打开报告、下载 Markdown/证据 JSON；
-6. **节点与安全页**：点“检测外网连通性（断网自证）”，展示审计事件流和接口清单。
+1. **调度总览**：三节点分工、Node2 占位说明、数据规模；
+2. **元智能体调度**：下发任务，展示阶段卡、日志与报告逐 token 生成；
+3. **图数据与工具**：展示 Node3 的图规则结果与资金网络；
+4. **规则与指标**：现场重算精确率/召回率与团伙级召回；
+5. **研判报告**：打开报告、下载报告与证据；
+6. **节点与工具**：展示节点状态、Node2 接入计划、调度日志与断网自检。
 
-详细讲解词与页面说明见 [docs/platform_guide.md](docs/platform_guide.md)。
+完整讲解词见 [docs/platform_guide.md](docs/platform_guide.md)。
 
-## 9. 常见问题
+## 10. 常见问题
 
 | 现象 | 原因 / 解决 |
 | :--- | :--- |
-| 启动平台报缺少 plotly/networkx | `pip install -r requirements.txt`（已加入依赖清单） |
-| Node2 显示离线 | Ollama 未启动或模型名不匹配，跑 `python scripts/check_llm.py` |
-| Node3 显示离线 | Neo4j 未启动；按 README 5.1 用 JDK 17 启动 |
-| 报告生成很慢 | 正常：本地 CPU 7B 约 2~4 分钟；可先用“仅跑图分析”演示 |
-| 报告状态 fallback | 大模型不可达，平台自动降级为规则模板报告 |
-| Streamlit 端口占用 | `streamlit run app.py --server.port 8502` |
-| 图谱页节点太多 | 关闭“显示关联邻居”，只看强证据账户 |
-
-## 10. 下一步
-
-- 第二台 GPU 节点接入后，实测报告生成耗时并录制演示视频；
-- 第三台节点接入 Neo4j 与 Wireshark，替换平台上的“审计事件流”为真实抓包证据；
-- 第四台节点接 HDMI 大屏，主讲人按 `docs/platform_guide.md` 的演示脚本走场；
-- 增强：元智能体动态路由（按穿透深度决定是否召唤新角色）、话术判别智能体、ECharts 大屏动画。
+| 平台页面为空 | 演示数据已清理；在“元智能体调度”下发任务即可重建 |
+| Node2 显示“占位” | 第二台尚未接入；开发调试使用本机 Ollama 临时推理 |
+| Node3 显示离线 | Neo4j 未启动；用 JDK 17 启动后刷新节点状态 |
+| AI 报告很慢 | 本地 CPU 调试约 2~4 分钟；可点“仅执行图工具分析”快速演示 |
+| 报告状态 fallback | AI 不可达，自动降级为规则模板报告 |
+| 需要重置演示环境 | `python scripts/reset_demo_data.py --graph` |

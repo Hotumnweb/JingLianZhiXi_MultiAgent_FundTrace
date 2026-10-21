@@ -7,7 +7,7 @@ from workbench import graph_view, services, theme
 
 
 def render() -> None:
-    theme.section("规则与指标", "三条图规则的判定口径、当前命中数量与离线评测指标")
+    theme.section("规则与指标", "Node3 工具执行的图规则 · 离线评测（标签不进入智能体输入）")
 
     rules = [
         ("多层归集", "强证据", "24 小时内 ≥4 个不同上游账户汇入，金额离散系数 CV ≤ 0.15", theme.PURPLE),
