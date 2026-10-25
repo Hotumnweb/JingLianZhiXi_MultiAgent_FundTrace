@@ -78,6 +78,7 @@ def render() -> None:
         st.dataframe(
             [
                 {"能力": "任务调度", "提供方": "Node1 · LangGraph Supervisor", "接口/协议": "进程内 StateGraph"},
+                {"能力": "任务队列/状态", "提供方": "Node1 · Coordinator", "接口/协议": "runtime/tasks/*.json"},
                 {"能力": "大模型推理", "提供方": "Node2 · Qwen3-4B + Qwen-Agent + Ollama", "接口/协议": "HTTP /api/chat（待接入）"},
                 {"能力": "图数据库", "提供方": "Node3 · Neo4j", "接口/协议": "Bolt 7687"},
                 {"能力": "图规则与子图查询", "提供方": "Node3 · Cypher", "接口/协议": "Bolt / Cypher"},

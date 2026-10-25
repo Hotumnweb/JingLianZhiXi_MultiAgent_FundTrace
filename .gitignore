@@ -18,5 +18,6 @@ venv/
 *.log
 *.tmp
 reports/
+runtime/
 .ipynb_checkpoints/
 data/synthetic_aml/Untitled.ipynb

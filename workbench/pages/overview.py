@@ -3,7 +3,7 @@
 
 import streamlit as st
 
-from workbench import graph_view, services, theme
+from workbench import graph_view, services, tasks, theme
 
 
 def render() -> None:
@@ -28,6 +28,26 @@ def render() -> None:
     cols = st.columns(6)
     for col, (label, value, hint, accent) in zip(cols, kpis):
         col.markdown(theme.kpi_card(label, value, hint, accent), unsafe_allow_html=True)
+
+    queue = tasks.queue_summary()
+    theme.section("任务队列状态", "Coordinator 维护的任务队列与调度记录")
+    queue_cols = st.columns(5)
+    queue_cols[0].metric("排队中", queue[tasks.STATUS_QUEUED])
+    queue_cols[1].metric("执行中", queue[tasks.STATUS_RUNNING])
+    queue_cols[2].metric("已完成", queue[tasks.STATUS_COMPLETED])
+    queue_cols[3].metric("失败", queue[tasks.STATUS_FAILED])
+    latest_task = queue.get("latest")
+    if latest_task:
+        queue_cols[4].metric(
+            "最近任务",
+            tasks.STATUS_LABELS.get(latest_task.get("status", ""), latest_task.get("status", "")),
+        )
+        st.caption(
+            f"最近任务 `{latest_task['id']}` · "
+            f"{(latest_task.get('instruction') or '')[:50]}"
+        )
+    else:
+        queue_cols[4].metric("最近任务", "—")
 
     theme.section("三节点集群", "Node1 调度 · Node2 算力（占位） · Node3 工具与图数据")
     node_cols = st.columns(3)

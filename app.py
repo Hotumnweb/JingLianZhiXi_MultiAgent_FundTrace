@@ -16,7 +16,15 @@
 import streamlit as st
 
 from workbench import services, theme
-from workbench.pages import graph_page, metrics, orchestration, overview, reports_page, system_page
+from workbench.pages import (
+    graph_page,
+    metrics,
+    orchestration,
+    overview,
+    reports_page,
+    system_page,
+    tasks_page,
+)
 
 # 目录名不能叫 platform（与 Python 标准库冲突），所以平台包命名为 workbench
 st.set_page_config(
@@ -30,6 +38,7 @@ theme.inject_theme()
 PAGES = {
     "调度总览": overview.render,
     "元智能体调度": orchestration.render,
+    "任务队列": tasks_page.render,
     "图数据与工具": graph_page.render,
     "规则与指标": metrics.render,
     "研判报告": reports_page.render,

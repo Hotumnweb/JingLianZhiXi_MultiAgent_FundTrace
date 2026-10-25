@@ -5,6 +5,7 @@
 
 清理内容：
 - reports/ 下的报告、证据 JSON、调度日志、临时日志；
+- runtime/tasks/ 下的任务队列与任务记录；
 - 项目内所有 __pycache__ / *.pyc / .ipynb_checkpoints；
 - 可选：清空 Neo4j 图谱（--graph），让现场从“解析流水 → 建图”开始演示。
 
@@ -23,6 +24,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REPORTS_DIR = PROJECT_ROOT / "reports"
+RUNTIME_DIR = PROJECT_ROOT / "runtime"
 
 
 def clean_reports() -> int:
@@ -70,6 +72,18 @@ def clean_caches() -> int:
     return removed
 
 
+def clean_runtime() -> bool:
+    """清空 runtime/tasks 下的任务队列与任务记录。"""
+    if not RUNTIME_DIR.exists():
+        return True
+    try:
+        shutil.rmtree(RUNTIME_DIR)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [WARN] 无法删除 runtime/：{exc}")
+        return False
+
+
 def clear_graph() -> bool:
     """清空 Neo4j 图谱（Node3 工具节点）。"""
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -97,6 +111,8 @@ def main() -> int:
         clear_graph()
     removed_reports = clean_reports()
     print(f"  reports/：已清理 {removed_reports} 项")
+    clean_runtime()
+    print("  runtime/tasks/：已清空任务队列记录")
     removed_caches = clean_caches()
     print(f"  缓存目录/文件：已清理 {removed_caches} 项")
     print("完成。现场打开平台后，从“元智能体调度”下发任务即可重新演示。")
