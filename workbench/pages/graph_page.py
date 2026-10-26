@@ -83,14 +83,17 @@ def render() -> None:
     st.dataframe(risk[:20], width="stretch", hide_index=True)
 
     with st.expander("Neo4j 复核查询", expanded=False):
+        st.markdown("**① 图谱规模：账户数**")
+        st.code("MATCH (n:Account) RETURN count(n) AS accounts;", language="cypher")
+        st.markdown("**② 图谱规模：转账边数**")
+        st.code("MATCH ()-[r:TRANSFER]->() RETURN count(r) AS transfers;", language="cypher")
+        st.markdown("**③ 某个可疑账户的资金往来（示例）**")
         st.code(
-            """// 查看当前图谱规模
-MATCH (n:Account) RETURN count(n);
-MATCH ()-[r:TRANSFER]->() RETURN count(r);
-
-// 查看某个可疑账户的资金往来
-MATCH p=(a:Account {id: 'ACC_01978'})-[r:TRANSFER]->(b:Account)
-RETURN p LIMIT 50;""",
+            "MATCH p=(a:Account {id: 'ACC_01978'})-[r:TRANSFER]->(b:Account)\n"
+            "RETURN p LIMIT 50;",
             language="cypher",
         )
-        st.caption("以上查询已在 Neo4j 5.26.25 实测通过；更多预设/自定义只读 Cypher 见“Neo4j 操作台”。")
+        st.caption(
+            "以上三条均已用 Neo4j 5.26.25 实测通过；在 Neo4j Browser 中请逐条执行，"
+            "平台“Neo4j 操作台”支持一键执行。"
+        )
