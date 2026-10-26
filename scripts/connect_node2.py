@@ -79,6 +79,7 @@ def smoke_test(base_url: str, model: str) -> dict:
         "model": model,
         "messages": [{"role": "user", "content": "只回复四个字：连接正常"}],
         "stream": False,
+        "think": False,
         "options": {"num_predict": 20, "temperature": 0},
     }
     started = time.perf_counter()
@@ -105,6 +106,16 @@ def update_env(ip: str, model: str) -> None:
         "NODE2_TARGET_IP": ip,
         "ENABLE_REPORT_AGENT": "1",
     }
+    # Qwen3.5 默认开启 thinking，联调必须显式关闭，否则 content 可能为空
+    if "qwen3.5" in model.lower():
+        updates.update(
+            {
+                "LLM_THINK": "false",
+                "LLM_NUM_CTX": "8192",
+                "LLM_TIMEOUT": "300",
+                "LLM_KEEP_ALIVE": "24h",
+            }
+        )
 
     if ENV_PATH.exists():
         lines = ENV_PATH.read_text(encoding="utf-8").splitlines()

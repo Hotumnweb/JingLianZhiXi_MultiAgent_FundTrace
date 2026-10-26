@@ -1,8 +1,10 @@
-# 第二阶段：第二台 GPU 节点部署手册（v0.3）
+# 第二阶段：GPU Inference Node 部署手册（v0.7）
+
+> 说明：本文是比赛现场固定内网（静态 IP、默认网关留空）的正式部署方案。
+> 当前双机联调的实际状态（随身 WiFi、Qwen3.5-9B-tools、think=false）见
+> [NETWORK_NODE2.md](NETWORK_NODE2.md)；两套方案代码一致，只改 `.env`。
 
 > 适用场景：第二台电脑（MECHREVO / i7-13700HX / 16GB / RTX 5060 Laptop 8GB）
-> 拿到手后，按本文档从零配置成“GPU 推理节点”。
-> 在第二台到货前，第一台可用本地 Ollama（CPU）跑通全链路，见第 6 节。
 
 ---
 

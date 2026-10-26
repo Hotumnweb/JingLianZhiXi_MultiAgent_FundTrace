@@ -1,7 +1,7 @@
 # “警链智析”——面向电诈资金图谱的元智能体调度系统
 
 > 项目仓库：<https://github.com/Hotumnweb/JingLianZhiXi_MultiAgent_FundTrace>
-> 当前版本：**v0.6 Coordinator 调度版**
+> 当前版本：**v0.7 双机联调版**
 > 定位：用元智能体做诈骗资金数据分析，第一台是调度中心，第二台提供 GPU 算力，第三台提供工具与图数据。
 
 ## 1. 三机架构
@@ -14,9 +14,9 @@
                 │ HTTP 11434（任务解析、多轮 AI 调用）                │ Bolt 7687 / 工具调用
                 ▼                                                   ▼
 ┌───────────────────────────── Node2 GPU 算力中心 ─────────────────┐  ┌──────────── Node3 工具与图数据 ────────────┐
-│ 状态：占位（待接入）                                              │  │ Neo4j 图数据库（账户 / 转账 / Cypher 规则）  │
-│ 规划：Qwen3-4B 微调 + Qwen-Agent + Ollama，元智能体运行在此节点   │  │ pandas / pdfplumber 流水解析                 │
-│ 职责：任务拆解、多轮决策、调用工具、总结结果                      │  │ 可选轻量嵌入模型（RAG）                      │
+│ 状态：已接入（随身 WiFi 热点联调）                                │  │ Neo4j 图数据库（账户 / 转账 / Cypher 规则）  │
+│ 模型：qwen3.5-9b-tools:q4km（Q4_K_M，think=false）                │  │ pandas / pdfplumber 流水解析                 │
+│ 职责：任务拆解、多轮决策、调用工具、总结结果（Qwen-Agent 待启动）  │  │ 可选轻量嵌入模型（RAG）                      │
 └───────────────────────────────────────────────────────────────────┘  └──────────────────────────────────────────────┘
 ```
 
@@ -24,8 +24,9 @@
 调用第三台的数据与工具（Neo4j 查询、流水解析）→ 汇总结果回传第一台 → 第一台记录日志、
 归档报告、展示证据。
 
-**当前阶段**：第二台尚未到位，第一台用内置 LangGraph 调度器 + 本机 Ollama 完成开发联调；
-第二台接入后只需修改 `.env`，平台会自动切换为“内网 GPU 节点”。
+**当前阶段**：第二台已通过随身 WiFi 热点接入（`192.168.0.200`），第一台通过
+`http://192.168.0.200:11434` 调用其 Ollama 模型生成研判报告；第三台工具节点暂由本机
+Neo4j 承担。比赛现场可换成固定内网，只改 `.env`。
 
 ## 2. 第一台：元智能体调度中枢（平台）
 
@@ -55,16 +56,17 @@ cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
 streamlit run app.py
 ```
 
-本地实测：平台六页 AppTest 全部无异常；完整流式链路可产生 892 个 token 事件；
-本地 CPU 调试模式下，报告生成约 2~4 分钟（第二台 GPU 接入后会明显缩短）。
+本地实测：平台七页 AppTest 全部无异常；完整流式链路可产生 892 个 token 事件。
+**跨机实测（2026-10-26）**：第一台解析 42,175 条流水 + 建图 + 图分析，第二台 RTX 5060
+生成研判报告耗时 **28.65 秒（34.53 tok/s）**，全链路 **71.9 秒**。
 
 ## 3. 当前状态与演示数据
 
-- 第二台 GPU 节点：**占位**，目标地址 `192.168.50.2`，规划模型 Qwen3-4B 微调 + Qwen-Agent；
+- 第二台 GPU 节点：**已接入**，IP `192.168.0.200`，模型 `qwen3.5-9b-tools:q4km`，
+  必须 `LLM_THINK=false`；详细说明见 [docs/NETWORK_NODE2.md](docs/NETWORK_NODE2.md)；
 - 第三台工具与图数据节点：开发调试阶段部署在本机（Neo4j + pandas），目标地址 `192.168.50.3`；
-- 为保证比赛现场由队员亲自操作演示，**报告、证据、调度日志和 Neo4j 图谱缓存已清空**；
-- 现场打开平台后，从“元智能体调度”下发任务即可重新建图、生成报告；
-- 需要清理时执行：`python scripts/reset_demo_data.py --graph`。
+- 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --graph`
+  恢复干净环境，由队员现场重新建图、生成报告；
 
 ## 4. 目录结构
 
@@ -134,35 +136,36 @@ JingLianZhiXi_MultiAgent_FundTrace/
 streamlit run app.py                          # 启动调度中枢
 python main.py                                # 命令行完整链路（含 AI 报告）
 python main.py --no-report                    # 只跑图工具分析
-python scripts/check_llm.py                   # 检查调试推理服务
+python scripts/check_llm.py                   # 检查推理服务（本机/第二台）
 python scripts/preflight_check.py             # 演示前自检
 python scripts/evaluate_on_synthetic_aml.py   # 规则评测
 python scripts/reset_demo_data.py --graph     # 清理演示缓存与图谱
 ```
 
-## 8. Node2 接入
+## 8. Node2 接入（当前已接入）
 
-按 [docs/second_node_setup.md](docs/second_node_setup.md) 部署第二台后修改 `.env`：
+第二台当前信息见 [docs/NETWORK_NODE2.md](docs/NETWORK_NODE2.md)：
+IP `192.168.0.200`，模型 `qwen3.5-9b-tools:q4km`，上下文 8192，约 47 tok/s。
 
-```env
-OLLAMA_BASE_URL=http://192.168.50.2:11434
-OLLAMA_MODEL=你的Qwen3-4B微调模型名
-```
-
-先验证再切：
+一键检测并写入 `.env`：
 
 ```powershell
-$env:OLLAMA_BASE_URL = 'http://192.168.50.2:11434'
-$env:OLLAMA_MODEL = '你的Qwen3-4B微调模型名'
+python scripts/connect_node2.py --ip 192.168.0.200 --model qwen3.5-9b-tools:q4km
+```
+
+脚本会自动测试 TCP → 读取模型 → 最小推理 → 写入 `.env`（含 `LLM_THINK=false`）。
+**Qwen3.5 必须关闭 thinking**：第一台 `.env` 需要 `LLM_THINK=false`，否则 `message.content`
+可能为空（思考内容进入 `thinking` 字段）。验证：
+
+```powershell
 python scripts/check_llm.py
 ```
 
-平台“节点与工具”页的 Node2 状态会从“占位”切换为“在线”，任务拆解与多轮 AI 调用交给
-Node2 上的 Qwen-Agent 元智能体。
+平台“节点与工具”页的 Node2 状态会显示为在线，报告节点调用第二台 GPU 完成。
 
 ## 9. 现场演示（建议 5~8 分钟）
 
-1. **调度总览**：三节点分工、Node2 占位说明、任务队列状态；
+1. **调度总览**：三节点分工、Node2 已接入说明、任务队列状态；
 2. **元智能体调度**：提交任务到队列或立即执行，展示阶段卡、日志与报告逐 token 生成；
 3. **任务队列**：执行排队任务、查看调用记录与中间结果、任务重跑；
 4. **图数据与工具**：展示 Node3 的图规则结果与资金网络；
@@ -177,8 +180,9 @@ Node2 上的 Qwen-Agent 元智能体。
 | 现象 | 原因 / 解决 |
 | :--- | :--- |
 | 平台页面为空 | 演示数据已清理；在“元智能体调度”下发任务即可重建 |
-| Node2 显示“占位” | 第二台尚未接入；开发调试使用本机 Ollama 临时推理 |
+| Node2 显示离线 | 检查第二台 Ollama 是否监听 0.0.0.0:11434、防火墙/网络是否变化；跑 `python scripts/connect_node2.py` |
 | Node3 显示离线 | Neo4j 未启动；用 JDK 17 启动后刷新节点状态 |
-| AI 报告很慢 | 本地 CPU 调试约 2~4 分钟；可点“仅执行图工具分析”快速演示 |
+| AI 报告很慢 | 第二台 GPU 当前约 30 秒；若回退到本机 CPU 调试约 2~4 分钟 |
+| 报告 content 为空 | Qwen3.5 必须 `LLM_THINK=false`（`connect_node2.py` 会自动写入） |
 | 报告状态 fallback | AI 不可达，自动降级为规则模板报告 |
 | 需要重置演示环境 | `python scripts/reset_demo_data.py --graph` |

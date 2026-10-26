@@ -154,7 +154,7 @@ def report_agent_node(state: dict) -> dict:
             writer = None
 
     try:
-        logs.append("[ReportAgent] 正在调用 Ollama 生成研判报告（本地 CPU 约需 2~4 分钟）……")
+        logs.append("[ReportAgent] 正在调用 AI 生成研判报告……")
         prompt = _build_prompt(_build_evidence(fast_io, gather, cycles), meta)
 
         if writer is not None:

@@ -24,7 +24,7 @@ def main() -> int:
     config = load_llm_config()
     print(
         f"[1/3] 配置：{config.base_url} | 模型 {config.model} | "
-        f"上下文 {config.num_ctx} | 超时 {config.timeout}s"
+        f"上下文 {config.num_ctx} | 超时 {config.timeout}s | think={config.think}"
     )
 
     info = check_connection()

@@ -52,6 +52,16 @@ class LLMConfig:
     max_tokens: int
     num_ctx: int
     keep_alive: str
+    think: bool | None = None
+
+
+def _parse_optional_bool(raw: str) -> bool | None:
+    value = (raw or "").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return None
 
 
 def load_llm_config() -> LLMConfig:
@@ -64,6 +74,7 @@ def load_llm_config() -> LLMConfig:
         max_tokens=int(os.getenv("LLM_MAX_TOKENS", "800")),
         num_ctx=int(os.getenv("LLM_NUM_CTX", "4096")),
         keep_alive=os.getenv("LLM_KEEP_ALIVE", "5m"),
+        think=_parse_optional_bool(os.getenv("LLM_THINK", "")),
     )
 
 
@@ -143,6 +154,8 @@ def generate(
             "num_ctx": config.num_ctx,
         },
     }
+    if config.think is not None:
+        payload["think"] = config.think
 
     started = time.perf_counter()
     response = requests.post(
@@ -187,6 +200,8 @@ def generate_stream(
             "num_ctx": config.num_ctx,
         },
     }
+    if config.think is not None:
+        payload["think"] = config.think
 
     started = time.perf_counter()
     parts: list[str] = []
