@@ -165,6 +165,91 @@ div[data-testid="stMetric"] {
   border-radius: 12px;
 }
 [data-testid="stDataFrame"] { border: 1px solid var(--jz-border); border-radius: 10px; }
+/* ---------- 深色主题下的输入框 / 下拉框 ---------- */
+div[data-baseweb="input"] > div,
+div[data-baseweb="select"] > div,
+div[data-baseweb="textarea"],
+div[data-baseweb="textarea"] > div {
+  background: #0b1220 !important;
+  border-color: rgba(148, 163, 184, .30) !important;
+  color: #e2e8f0 !important;
+}
+input, textarea {
+  color: #e2e8f0 !important;
+  caret-color: #38bdf8 !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+div[data-baseweb="input"]:focus-within,
+div[data-baseweb="select"]:focus-within,
+div[data-baseweb="textarea"]:focus-within {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, .45) !important;
+}
+div[data-baseweb="popover"] div[role="listbox"],
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] > div {
+  background: #0b1220 !important;
+  border: 1px solid rgba(148, 163, 184, .25) !important;
+}
+div[data-baseweb="popover"] [role="option"],
+div[data-baseweb="popover"] li {
+  color: #e2e8f0 !important;
+}
+div[data-baseweb="popover"] [role="option"]:hover,
+div[data-baseweb="popover"] li:hover,
+div[data-baseweb="popover"] [aria-selected="true"] {
+  background: rgba(56, 189, 248, .16) !important;
+}
+
+/* ---------- 折叠面板 / 代码块 / 表格 ---------- */
+[data-testid="stExpander"] details {
+  background: rgba(15, 23, 42, .55) !important;
+  border-radius: 12px !important;
+}
+[data-testid="stExpander"] summary {
+  background: rgba(15, 23, 42, .78) !important;
+  color: #e2e8f0 !important;
+  border-radius: 12px !important;
+}
+[data-testid="stExpander"] summary:hover {
+  background: rgba(30, 41, 59, .92) !important;
+}
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span {
+  color: #e2e8f0 !important;
+}
+[data-testid="stExpander"] svg {
+  color: #94a3b8 !important;
+  fill: #94a3b8 !important;
+}
+[data-testid="stCode"] pre,
+[data-testid="stCodeBlock"] pre,
+pre {
+  background: #0b1220 !important;
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(148, 163, 184, .16) !important;
+  border-radius: 10px !important;
+}
+[data-testid="stCode"] code,
+[data-testid="stCodeBlock"] code,
+pre code {
+  color: #cbd5e1 !important;
+}
+[data-testid="stDataFrame"],
+[data-testid="stDataFrame"] [role="grid"] {
+  background: #0b1220 !important;
+  color: #e2e8f0 !important;
+}
+[data-testid="stAlert"] p {
+  color: #e2e8f0 !important;
+}
+[data-testid="stMetricLabel"] p,
+[data-testid="stMetricValue"] {
+  color: #e2e8f0 !important;
+}
 #MainMenu, footer { visibility: hidden; }
 </style>
 """

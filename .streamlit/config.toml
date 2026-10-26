@@ -1,0 +1,35 @@
+[theme]
+base = "dark"
+primaryColor = "#38bdf8"
+backgroundColor = "#070b14"
+secondaryBackgroundColor = "#0f172a"
+textColor = "#e2e8f0"
+borderColor = "#233047"
+linkColor = "#38bdf8"
+codeBackgroundColor = "#0b1220"
+codeTextColor = "#cbd5e1"
+baseRadius = "10px"
+buttonRadius = "10px"
+showWidgetBorder = true
+showSidebarBorder = true
+paddingTop = "1.1rem"
+paddingBottom = "2.5rem"
+dataframeBorderColor = "#233047"
+dataframeHeaderBackgroundColor = "#0f172a"
+dataframeHeaderTextColor = "#e2e8f0"
+chartCategoricalColors = ["#38bdf8", "#a78bfa", "#fbbf24", "#34d399", "#f87171", "#f472b6", "#94a3b8"]
+
+[theme.sidebar]
+backgroundColor = "#080d18"
+secondaryBackgroundColor = "#0f172a"
+codeBackgroundColor = "#0b1220"
+textColor = "#e2e8f0"
+borderColor = "#233047"
+primaryColor = "#38bdf8"
+linkColor = "#38bdf8"
+showWidgetBorder = true
+
+[server]
+# 允许第二台电脑访问平台大屏
+address = "0.0.0.0"
+headless = false

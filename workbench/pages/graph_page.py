@@ -93,3 +93,4 @@ MATCH p=(a:Account {id: 'ACC_01978'})-[r:TRANSFER]->(b:Account)
 RETURN p LIMIT 50;""",
             language="cypher",
         )
+        st.caption("以上查询已在 Neo4j 5.26.25 实测通过；更多预设/自定义只读 Cypher 见“Neo4j 操作台”。")

@@ -18,7 +18,9 @@ import streamlit as st
 from workbench import services, theme
 from workbench.pages import (
     graph_page,
+    meta_agent_page,
     metrics,
+    neo4j_console,
     orchestration,
     overview,
     reports_page,
@@ -38,12 +40,27 @@ theme.inject_theme()
 PAGES = {
     "调度总览": overview.render,
     "元智能体调度": orchestration.render,
+    "元智能体自主分析": meta_agent_page.render,
     "任务队列": tasks_page.render,
     "图数据与工具": graph_page.render,
+    "Neo4j 操作台": neo4j_console.render,
     "规则与指标": metrics.render,
     "研判报告": reports_page.render,
     "节点与工具": system_page.render,
 }
+
+
+def _default_page_index() -> int:
+    """支持 ?page=元智能体调度 直接打开指定页面（演示/截图方便）。"""
+    try:
+        requested = st.query_params.get("page", "")
+        if isinstance(requested, list):
+            requested = requested[0] if requested else ""
+        if requested in PAGES:
+            return list(PAGES.keys()).index(requested)
+    except Exception:  # noqa: BLE001
+        pass
+    return 0
 
 with st.sidebar:
     st.markdown(
@@ -56,6 +73,7 @@ with st.sidebar:
     page = st.radio(
         "平台导航",
         list(PAGES.keys()),
+        index=_default_page_index(),
         key="nav_page",
         label_visibility="collapsed",
     )

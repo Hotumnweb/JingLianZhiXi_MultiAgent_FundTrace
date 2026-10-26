@@ -7,7 +7,8 @@ from workbench import services, theme
 
 
 def render() -> None:
-    theme.section("节点与工具", "Node1 调度 · Node2 算力（占位） · Node3 工具与图数据")
+    node2_label = "已接入" if services.inference_is_remote() else "占位"
+    theme.section("节点与工具", f"Node1 调度 · Node2 算力（{node2_label}） · Node3 工具与图数据")
 
     top_cols = st.columns([1, 1, 4])
     with top_cols[0]:
@@ -58,12 +59,12 @@ def render() -> None:
         info = services.system_info()
         st.dataframe(
             [
-                {"项目": "主机名", "值": info["hostname"]},
-                {"项目": "操作系统", "值": info["os"]},
-                {"项目": "Python", "值": info["python"]},
-                {"项目": "CPU 核数", "值": info["cpu_count"]},
-                {"项目": "内存占用", "值": info["memory"]},
-                {"项目": "内网地址", "值": info["local_ips"]},
+                {"项目": "主机名", "值": str(info["hostname"])},
+                {"项目": "操作系统", "值": str(info["os"])},
+                {"项目": "Python", "值": str(info["python"])},
+                {"项目": "CPU 核数", "值": str(info["cpu_count"])},
+                {"项目": "内存占用", "值": str(info["memory"])},
+                {"项目": "内网地址", "值": str(info["local_ips"])},
             ],
             width="stretch",
             hide_index=True,
@@ -94,14 +95,14 @@ def render() -> None:
             hide_index=True,
         )
 
-    theme.section("Node2 接入计划", "GPU 算力中心（当前占位）")
+    theme.section("Node2 接入状态", "GPU 算力中心（已接入）")
     st.markdown(
-        """
-        1. 在第二台电脑部署 Ollama，拉取/训练 **Qwen3-4B** 模型，完成资金分析数据微调；
-        2. 使用 **Qwen-Agent + Ollama** 在该节点运行元智能体，接收 Node1 下发的任务；
-        3. 配置静态 IP、防火墙 11434 端口，Node1 通过 `http://192.168.50.2:11434` 多轮调用；
-        4. 修改 `.env` 的 `OLLAMA_BASE_URL` 与 `OLLAMA_MODEL`，平台 Node2 状态自动切换为在线；
-        5. 接入后，任务拆解、工具调用决策、结果汇总由 Node2 元智能体执行，Node1 负责调用与状态管理。
+        f"""
+        1. 第二台已部署 Ollama（0.40.10），模型 **qwen3.5-9b-tools:q4km**（Q4_K_M，带 tools）；
+        2. Node1 通过 `http://{targets['node2']}:11434` 调用 `/api/chat` 与 tools；
+        3. Qwen3.5 默认 thinking，必须 `LLM_THINK=false`，否则 `message.content` 可能为空；
+        4. Qwen-Agent 0.0.34 已安装，Node2 FastAPI（8010）尚未启动；当前先用 Ollama 原生 tools 联调；
+        5. “元智能体自主分析”页已跑通工具调用；“元智能体调度”页仍走稳定 Supervisor 流水线。
         """
     )
 

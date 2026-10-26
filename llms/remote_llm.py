@@ -235,3 +235,50 @@ def generate_stream(
     elapsed = time.perf_counter() - started
     return _result(config, "".join(parts).strip(), elapsed, final_data)
 
+
+def chat_with_tools(
+    messages: list[dict],
+    tools: list[dict],
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> dict:
+    """带 tools 的 Ollama /api/chat 调用，用于元智能体自主选择工具。
+
+    返回模型原始 message（含 tool_calls）以及耗时指标。
+    Qwen3.5 仍需 think=false，否则内容可能为空。
+    """
+    config = load_llm_config()
+    payload = {
+        "model": config.model,
+        "messages": messages,
+        "stream": False,
+        "keep_alive": config.keep_alive,
+        "tools": tools,
+        "options": {
+            "temperature": config.temperature if temperature is None else temperature,
+            "num_predict": config.max_tokens if max_tokens is None else max_tokens,
+            "num_ctx": config.num_ctx,
+        },
+    }
+    if config.think is not None:
+        payload["think"] = config.think
+
+    started = time.perf_counter()
+    response = requests.post(
+        f"{config.base_url}/api/chat",
+        json=payload,
+        timeout=config.timeout,
+    )
+    response.raise_for_status()
+    elapsed = time.perf_counter() - started
+    data = response.json()
+    message = data.get("message") or {}
+    return {
+        "message": message,
+        "content": (message.get("content") or "").strip(),
+        "tool_calls": message.get("tool_calls") or [],
+        "elapsed": round(elapsed, 2),
+        "eval_count": int(data.get("eval_count") or 0),
+        "prompt_eval_count": int(data.get("prompt_eval_count") or 0),
+    }
+

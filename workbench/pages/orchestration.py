@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Coordinator 调度台：任务入队/执行、阶段进度、调用日志、流式报告与追加指令。"""
 
+import json
 import time
 from pathlib import Path
 
@@ -11,13 +12,123 @@ from workbench import coordinator, services, tasks, theme
 from workbench.runner import STAGES
 
 DATASETS = {
-    "data/synthetic_aml/transactions.csv": "合成 AML 数据集（42,175 条）",
-    "data/sample_flow.csv": "第一版演示数据（100 条）",
+    "data/synthetic_aml/transactions.csv": "合成 AML 数据集 · 42,175 条",
+    "data/sample_flow.csv": "演示数据 · 100 条",
 }
 
 
 def _stage_states(done: set[str]) -> dict[str, str]:
     return {key: ("done" if key in done else "pending") for key, _, _ in STAGES}
+
+
+def _load_task_evidence(task: dict) -> tuple[dict, list[str]]:
+    """从任务落盘的证据 JSON 中恢复证据与可疑账户，供切页后重新展示。"""
+    evidence_path = task.get("evidence_path") or ""
+    if not evidence_path or not Path(evidence_path).exists():
+        return {}, []
+    try:
+        payload = json.loads(Path(evidence_path).read_text(encoding="utf-8"))
+        summary = services.evidence_summary(payload)
+        return summary.get("evidence") or {}, summary.get("suspect_list") or []
+    except Exception:  # noqa: BLE001
+        return {}, []
+
+
+def _render_task_result(task: dict) -> None:
+    """展示一个已完成任务的结果、报告、追加指令与调用记录。
+
+    从任务 JSON + 证据 JSON 恢复全部内容，因此切换页面/刷新后仍可复用。
+    """
+    evidence, suspects = _load_task_evidence(task)
+    intermediate = task.get("intermediate") or {}
+    task_id = task.get("id", "")
+
+    theme.section("任务结果", f"任务号 {task_id} · 已写入任务队列与调用日志")
+    cols = st.columns(5)
+    cols[0].metric("可疑账户", task.get("suspicious") or len(suspects))
+    cols[1].metric("归集账户", len(evidence.get("gather") or []))
+    cols[2].metric("环形链", len(evidence.get("cycles") or []))
+    cols[3].metric("快进快出", len(evidence.get("fast_io") or []))
+    cols[4].metric(
+        "报告状态",
+        {"ok": "AI 生成", "fallback": "规则兜底"}.get(task.get("llm_status", ""), "未启用"),
+    )
+
+    if intermediate:
+        cols = st.columns(4)
+        cols[0].metric("解析流水", intermediate.get("parsed_count", "—"))
+        cols[1].metric("图账户", intermediate.get("accounts", "—"))
+        cols[2].metric("转账边", intermediate.get("transfers", "—"))
+        cols[3].metric("耗时", f"{task.get('duration_s', '—')} s")
+
+    conclusion = task.get("conclusion") or ""
+    if conclusion:
+        if task.get("llm_status") == "fallback":
+            st.warning("AI 调用失败，已自动降级为规则模板报告。")
+        with st.container(border=True):
+            st.markdown(conclusion)
+        report_path = task.get("report_path")
+        evidence_path = task.get("evidence_path")
+        download_cols = st.columns(2)
+        if report_path and Path(report_path).exists():
+            download_cols[0].download_button(
+                "下载研判报告（Markdown）",
+                data=services.read_text(Path(report_path)),
+                file_name=Path(report_path).name,
+                mime="text/markdown",
+                width="stretch",
+                key=f"dl_task_report_{task_id}",
+            )
+        if evidence_path and Path(evidence_path).exists():
+            download_cols[1].download_button(
+                "下载证据 JSON",
+                data=services.read_text(Path(evidence_path)),
+                file_name=Path(evidence_path).name,
+                mime="application/json",
+                width="stretch",
+                key=f"dl_task_evidence_{task_id}",
+            )
+    else:
+        st.info("本次未启用 AI 研判报告，仅输出图工具分析结果。")
+
+    if task.get("enable_report") and task.get("evidence_path"):
+        with st.expander("追加侦查指令", expanded=False):
+            st.caption("在已有证据与报告基础上追加分析；Node2 GPU 通常数十秒返回。")
+            follow = st.text_input(
+                "追加指令",
+                placeholder="例如：重点说明环形转账链的资金闭环特征",
+                key=f"follow_input_{task_id}",
+                persist_state="session",
+            )
+            if st.button("执行追加分析", key=f"follow_btn_{task_id}"):
+                if not follow.strip():
+                    st.warning("请先输入追加指令")
+                else:
+                    with st.spinner("正在调用 Node2 AI 分析追加指令……"):
+                        try:
+                            answer = coordinator.follow_up(task_id, follow.strip())
+                        except Exception as exc:  # noqa: BLE001
+                            st.error(f"追加分析失败：{type(exc).__name__}: {exc}")
+                        else:
+                            st.success("追加分析完成")
+                            st.markdown(answer)
+
+        latest = tasks.load_task(task_id) or task
+        for item in latest.get("follow_ups") or []:
+            with st.expander(f"历史追加：{item.get('instruction', '')[:40]}", expanded=False):
+                st.markdown(item.get("answer", ""))
+
+    if suspects:
+        with st.expander(f"可疑账户清单（{len(suspects)} 个）", expanded=False):
+            st.write(suspects)
+
+    if task.get("node_calls"):
+        with st.expander("子智能体调用记录", expanded=False):
+            st.dataframe(task["node_calls"], width="stretch", hide_index=True)
+
+    logs = task.get("logs") or []
+    with st.expander("调度日志（完整）", expanded=False):
+        st.code("\n".join(str(line) for line in logs), language="text")
 
 
 def render() -> None:
@@ -64,7 +175,7 @@ def render() -> None:
             ],
         )
         dataset = st.selectbox(
-            "数据源（Node3 工具读取）",
+            "流水数据源（Node3 读取）",
             options=list(DATASETS.keys()),
             format_func=lambda path: DATASETS.get(path, path),
         )
@@ -127,10 +238,15 @@ def render() -> None:
         token_box = st.empty()
 
     if not (submit_queue or run_now or run_graph_only):
-        st.markdown(
-            '<div class="jz-note">提交到队列后可到“任务队列”统一执行；也可以立即执行当前任务。</div>',
-            unsafe_allow_html=True,
-        )
+        last_id = st.session_state.get("last_task_id")
+        last_task = tasks.load_task(last_id) if last_id else None
+        if last_task:
+            _render_task_result(last_task)
+        else:
+            st.markdown(
+                '<div class="jz-note">提交到队列后可到“任务队列”统一执行；也可以立即执行当前任务。</div>',
+                unsafe_allow_html=True,
+            )
         return
 
     if run_graph_only:
@@ -214,6 +330,7 @@ def render() -> None:
         progress.progress(1.0, text="任务完成")
         elapsed = time.perf_counter() - started
         task = tasks.load_task(task["id"]) or task
+        st.session_state["last_task_id"] = task["id"]
         status_line.success(f"任务完成，用时 {elapsed:.1f} 秒 · 任务号 `{task['id']}`")
         token_box.empty()
         services.audit_event(
@@ -236,88 +353,4 @@ def render() -> None:
         )
         return
 
-    evidence = final_state.get("evidence") or {}
-    suspects = final_state.get("suspicious_accounts") or []
-    intermediate = task.get("intermediate") or {}
-
-    theme.section("任务结果", f"任务号 {task['id']} · 已写入任务队列与调用日志")
-    cols = st.columns(5)
-    cols[0].metric("可疑账户", len(suspects))
-    cols[1].metric("归集账户", len(evidence.get("gather") or []))
-    cols[2].metric("环形链", len(evidence.get("cycles") or []))
-    cols[3].metric("快进快出", len(evidence.get("fast_io") or []))
-    cols[4].metric(
-        "报告状态",
-        {"ok": "AI 生成", "fallback": "规则兜底"}.get(task.get("llm_status", ""), "未启用"),
-    )
-
-    if intermediate:
-        cols = st.columns(4)
-        cols[0].metric("解析流水", intermediate.get("parsed_count", "—"))
-        cols[1].metric("图账户", intermediate.get("accounts", "—"))
-        cols[2].metric("转账边", intermediate.get("transfers", "—"))
-        cols[3].metric("耗时", f"{task.get('duration_s', '—')} s")
-
-    conclusion = final_state.get("conclusion") or task.get("conclusion") or ""
-    if conclusion:
-        if task.get("llm_status") == "fallback":
-            st.warning("AI 调用失败，已自动降级为规则模板报告。")
-        with st.container(border=True):
-            st.markdown(conclusion)
-        report_path = task.get("report_path")
-        evidence_path = task.get("evidence_path")
-        download_cols = st.columns(2)
-        if report_path and Path(report_path).exists():
-            download_cols[0].download_button(
-                "下载研判报告（Markdown）",
-                data=services.read_text(Path(report_path)),
-                file_name=Path(report_path).name,
-                mime="text/markdown",
-                width="stretch",
-                key=f"dl_task_report_{task['id']}",
-            )
-        if evidence_path and Path(evidence_path).exists():
-            download_cols[1].download_button(
-                "下载证据 JSON",
-                data=services.read_text(Path(evidence_path)),
-                file_name=Path(evidence_path).name,
-                mime="application/json",
-                width="stretch",
-                key=f"dl_task_evidence_{task['id']}",
-            )
-    else:
-        st.info("本次未启用 AI 研判报告，仅输出图工具分析结果。")
-
-    if task.get("enable_report") and task.get("evidence_path"):
-        with st.expander("追加侦查指令", expanded=False):
-            st.caption("在已有证据与报告基础上追加分析；调试模式约需几十秒到 2 分钟。")
-            follow = st.text_input(
-                "追加指令",
-                placeholder="例如：重点说明环形转账链的资金闭环特征",
-                key=f"follow_input_{task['id']}",
-            )
-            if st.button("执行追加分析", key=f"follow_btn_{task['id']}"):
-                if not follow.strip():
-                    st.warning("请先输入追加指令")
-                else:
-                    with st.spinner("正在调用 AI 分析追加指令……"):
-                        try:
-                            answer = coordinator.follow_up(task["id"], follow.strip())
-                        except Exception as exc:  # noqa: BLE001
-                            st.error(f"追加分析失败：{type(exc).__name__}: {exc}")
-                        else:
-                            st.markdown(answer)
-        follow_ups = tasks.load_task(task["id"]).get("follow_ups") or []
-        for item in follow_ups:
-            with st.expander(f"历史追加：{item.get('instruction', '')[:40]}", expanded=False):
-                st.markdown(item.get("answer", ""))
-
-    with st.expander(f"可疑账户清单（{len(suspects)} 个）", expanded=False):
-        st.write(suspects)
-
-    if task.get("node_calls"):
-        with st.expander("子智能体调用记录", expanded=False):
-            st.dataframe(task["node_calls"], width="stretch", hide_index=True)
-
-    with st.expander("调度日志（完整）", expanded=False):
-        st.code("\n".join(logs) if logs else "\n".join(task.get("logs") or []), language="text")
+    _render_task_result(task)

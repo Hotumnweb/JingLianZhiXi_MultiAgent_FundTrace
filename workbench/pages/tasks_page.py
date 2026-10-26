@@ -41,6 +41,7 @@ def _task_rows(items: list[dict]) -> list[dict]:
 
 
 def _render_detail(task: dict) -> None:
+    st.session_state["last_task_id"] = task["id"]
     st.markdown(
         f"### 任务 `{task['id']}` {_status_pill(task.get('status', ''))}",
         unsafe_allow_html=True,
@@ -104,6 +105,33 @@ def _render_detail(task: dict) -> None:
             width="stretch",
             hide_index=True,
         )
+
+    if (
+        task.get("enable_report")
+        and task.get("evidence_path")
+        and task.get("status") == tasks.STATUS_COMPLETED
+    ):
+        with st.expander("追加侦查指令", expanded=False):
+            st.caption("在已有证据与报告基础上追加分析；Node2 GPU 通常数十秒返回。")
+            follow = st.text_input(
+                "追加指令",
+                placeholder="例如：重点说明环形转账链的资金闭环特征",
+                key=f"queue_follow_input_{task['id']}",
+                persist_state="session",
+            )
+            if st.button("执行追加分析", key=f"queue_follow_btn_{task['id']}"):
+                if not follow.strip():
+                    st.warning("请先输入追加指令")
+                else:
+                    with st.spinner("正在调用 Node2 AI 分析追加指令……"):
+                        try:
+                            answer = coordinator.follow_up(task["id"], follow.strip())
+                        except Exception as exc:  # noqa: BLE001
+                            st.error(f"追加分析失败：{type(exc).__name__}: {exc}")
+                        else:
+                            st.success("追加分析完成")
+                            st.markdown(answer)
+                            task = tasks.load_task(task["id"]) or task
 
     follow_ups = task.get("follow_ups") or []
     if follow_ups:

@@ -23,6 +23,8 @@
 """
 
 import os
+import re
+import time
 from collections import defaultdict
 from datetime import datetime
 
@@ -412,3 +414,73 @@ def fetch_subgraph(account_ids: list[str], limit: int = 900) -> dict:
             )
 
     return {"nodes": list(nodes.values()), "edges": edges, "truncated": len(edges) >= limit}
+
+
+# 只允许现场执行“读查询”；写操作必须走任务流程或 Neo4j Browser
+_READONLY_PREFIXES = ("MATCH", "RETURN", "WITH", "UNWIND", "SHOW")
+_FORBIDDEN_KEYWORDS = {
+    "CREATE",
+    "MERGE",
+    "DELETE",
+    "DETACH",
+    "SET",
+    "REMOVE",
+    "DROP",
+    "LOAD",
+    "FOREACH",
+    "CALL",
+    "ALTER",
+    "RENAME",
+    "GRANT",
+    "DENY",
+    "REVOKE",
+}
+
+
+def _json_value(value):
+    """把 Neo4j 的 Node/Relationship/Path 等对象转成可展示的值。"""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    return str(value)
+
+
+def run_readonly_cypher(query: str, limit: int = 200) -> dict:
+    """执行只读 Cypher，返回列名、行数据、行数和耗时。
+
+    UI 的“Neo4j 操作台”使用本函数；用于现场验证图查询与规则结果。
+    禁止写操作，避免误改演示数据。
+    """
+    text = (query or "").strip().rstrip(";").strip()
+    if not text:
+        raise ValueError("Cypher 不能为空")
+    upper = text.upper()
+    if not upper.startswith(_READONLY_PREFIXES):
+        raise ValueError("只允许 MATCH / RETURN / WITH / UNWIND / SHOW 开头的只读查询")
+    tokens = set(re.findall(r"\b[A-Z_]+\b", upper))
+    blocked = tokens & _FORBIDDEN_KEYWORDS
+    if blocked:
+        raise ValueError(f"检测到写操作关键字：{', '.join(sorted(blocked))}；操作台仅允许只读查询")
+
+    started = time.perf_counter()
+    with get_driver().session() as session:
+        result = session.run(text)
+        columns = list(result.keys())
+        rows: list[dict] = []
+        truncated = False
+        for index, record in enumerate(result):
+            if index >= limit:
+                truncated = True
+                break
+            rows.append({key: _json_value(value) for key, value in record.items()})
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 1)
+    return {
+        "columns": columns,
+        "rows": rows,
+        "row_count": len(rows),
+        "truncated": truncated,
+        "elapsed_ms": elapsed_ms,
+    }
