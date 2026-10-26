@@ -49,7 +49,11 @@ def render() -> None:
     else:
         queue_cols[4].metric("最近任务", "—")
 
-    theme.section("三节点集群", "Node1 调度 · Node2 算力（占位） · Node3 工具与图数据")
+    remote = services.inference_is_remote()
+    theme.section(
+        "三节点集群",
+        f"Node1 调度 · Node2 算力{'（远端已配置）' if remote else '（占位）'} · Node3 工具与图数据",
+    )
     node_cols = st.columns(3)
     for col, node in zip(node_cols, nodes):
         col.markdown(theme.node_card(node), unsafe_allow_html=True)
@@ -61,11 +65,17 @@ def render() -> None:
         ),
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<div class="jz-note">Node2 接入前，第一台使用内置 LangGraph 调度器和本机 Ollama 完成开发联调；'
-        "Node2 接入后，任务拆解、多轮 AI 调用由 Qwen3-4B + Qwen-Agent 元智能体执行。</div>",
-        unsafe_allow_html=True,
-    )
+    if remote:
+        node_note = (
+            "Node2 推理服务已配置：任务下发后由远端 GPU 节点生成研判报告；"
+            "Node1 只负责任务调度、状态管理与结果汇总。"
+        )
+    else:
+        node_note = (
+            "Node2 接入前，第一台使用内置 LangGraph 调度器和本机 Ollama 完成开发联调；"
+            "Node2 接入后，任务拆解、多轮 AI 调用由 Qwen3-4B + Qwen-Agent 元智能体执行。"
+        )
+    st.markdown(f'<div class="jz-note">{node_note}</div>', unsafe_allow_html=True)
 
     left, right = st.columns([1, 1])
     with left:

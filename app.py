@@ -71,7 +71,10 @@ with st.sidebar:
             theme.pill(f"NODE {node['index']} · {node['role']}", tone),
             unsafe_allow_html=True,
         )
-    st.caption("Node2：Qwen3-4B 微调 + Qwen-Agent 待接入")
+    if services.inference_is_remote():
+        st.caption("Node2：远端推理服务已配置")
+    else:
+        st.caption("Node2：Qwen3-4B 微调 + Qwen-Agent 待接入")
     if st.button("刷新节点状态", width="stretch"):
         st.rerun()
 

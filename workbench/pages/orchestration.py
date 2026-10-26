@@ -35,12 +35,19 @@ def render() -> None:
         ),
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<div class="jz-note"><b>调用链：</b>Node1 调度中心 → Node2 GPU 算力中心'
-        "（Qwen3-4B 微调 + Qwen-Agent，待接入）↔ Node3 工具与图数据节点"
-        "（Neo4j / pandas）。Node2 接入前，本机 Ollama 仅作为开发调试的临时推理服务。</div>",
-        unsafe_allow_html=True,
-    )
+    if services.inference_is_remote():
+        chain_note = (
+            "<b>调用链：</b>Node1 调度中心 → Node2 GPU 算力中心"
+            "（远端推理服务已配置）↔ Node3 工具与图数据节点（Neo4j / pandas）。"
+            "Node1 只负责任务下发、调度与结果汇总。"
+        )
+    else:
+        chain_note = (
+            "<b>调用链：</b>Node1 调度中心 → Node2 GPU 算力中心"
+            "（Qwen3-4B 微调 + Qwen-Agent，待接入）↔ Node3 工具与图数据节点"
+            "（Neo4j / pandas）。Node2 接入前，本机 Ollama 仅作为开发调试的临时推理服务。"
+        )
+    st.markdown(f'<div class="jz-note">{chain_note}</div>', unsafe_allow_html=True)
 
     debug = services.debug_inference_status()
     left, right = st.columns([1.05, 1.95])
@@ -78,18 +85,26 @@ def render() -> None:
         enable_report = st.toggle(
             "执行 AI 研判报告",
             value=report_agent_enabled(),
-            help="Node2 接入前由本机 Ollama 承担；关闭后只执行图工具分析",
+            help="调用 Node2 推理服务；Node2 未接入时使用本机 Ollama 调试",
         )
 
         if debug["ok"]:
-            st.markdown(
-                theme.pill(f"调试推理可用：{debug['model']}", "ok"),
-                unsafe_allow_html=True,
-            )
-            st.caption(f"{debug['base_url']} · Node2 接入后自动切换")
+            if debug.get("remote"):
+                st.markdown(
+                    theme.pill(f"Node2 推理服务在线：{debug['model']}", "ok"),
+                    unsafe_allow_html=True,
+                )
+                st.caption(f"{debug['base_url']} · 远端 GPU 节点")
+            else:
+                st.markdown(
+                    theme.pill(f"调试推理可用：{debug['model']}", "ok"),
+                    unsafe_allow_html=True,
+                )
+                st.caption(f"{debug['base_url']} · 本机 Ollama 临时推理")
         else:
+            label = "Node2 推理服务不可用" if debug.get("remote") else "调试推理不可用"
             st.markdown(
-                theme.pill("调试推理不可用：报告将降级为规则模板", "warn"),
+                theme.pill(f"{label}：报告将降级为规则模板", "warn"),
                 unsafe_allow_html=True,
             )
             st.caption(debug.get("error", ""))

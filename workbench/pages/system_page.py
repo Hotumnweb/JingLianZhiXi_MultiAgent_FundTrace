@@ -35,7 +35,11 @@ def render() -> None:
                 "节点": "Node2",
                 "角色": "GPU 推理与算力（Inference）",
                 "目标地址": targets["node2"],
-                "当前状态": "占位（Qwen3-4B + Qwen-Agent 待接入）",
+                "当前状态": (
+                    "已配置远端推理服务"
+                    if services.inference_is_remote()
+                    else "占位（Qwen3-4B + Qwen-Agent 待接入）"
+                ),
             },
             {
                 "节点": "Node3",
@@ -79,7 +83,7 @@ def render() -> None:
             [
                 {"能力": "任务调度", "提供方": "Node1 · LangGraph Supervisor", "接口/协议": "进程内 StateGraph"},
                 {"能力": "任务队列/状态", "提供方": "Node1 · Coordinator", "接口/协议": "runtime/tasks/*.json"},
-                {"能力": "大模型推理", "提供方": "Node2 · Qwen3-4B + Qwen-Agent + Ollama", "接口/协议": "HTTP /api/chat（待接入）"},
+                {"能力": "大模型推理", "提供方": "Node2 · Qwen3-4B + Qwen-Agent + Ollama", "接口/协议": "HTTP /api/chat" + ("（已配置）" if services.inference_is_remote() else "（待接入）")},
                 {"能力": "图数据库", "提供方": "Node3 · Neo4j", "接口/协议": "Bolt 7687"},
                 {"能力": "图规则与子图查询", "提供方": "Node3 · Cypher", "接口/协议": "Bolt / Cypher"},
                 {"能力": "流水解析", "提供方": "Node3 · pandas / pdfplumber", "接口/协议": "本地工具"},

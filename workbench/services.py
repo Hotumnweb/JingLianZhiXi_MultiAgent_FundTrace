@@ -341,8 +341,14 @@ def local_ipv4() -> list[str]:
     return sorted(ips) or ["127.0.0.1"]
 
 
+def inference_is_remote() -> bool:
+    """推理服务是否已配置为远端 Node2（非本机回环）。"""
+    base_url = os.getenv("OLLAMA_BASE_URL", "").strip().lower()
+    return bool(base_url) and "127.0.0.1" not in base_url and "localhost" not in base_url
+
+
 def node_status() -> list[dict]:
-    """三节点状态：Node1 调度中心 / Node2 GPU 算力（占位） / Node3 工具与图数据。"""
+    """三节点状态：Node1 调度中心 / Node2 GPU 算力 / Node3 工具与图数据。"""
     hostname = socket.gethostname()
     targets = node_targets()
     nodes = [
@@ -356,19 +362,66 @@ def node_status() -> list[dict]:
             "status": "online",
             "latency_ms": 0,
             "detail": "LangGraph Supervisor · 任务调度 · 调用日志",
-        },
-        {
-            "id": "node2",
-            "index": "02",
-            "name": "GPU 算力中心",
-            "role": "GPU 推理与算力",
-            "role_en": "Inference",
-            "endpoint": f"{targets['node2']}:11434（规划）",
-            "status": "placeholder",
-            "latency_ms": 0,
-            "detail": "待接入：Qwen3-4B 微调 + Qwen-Agent + Ollama",
-        },
+        }
     ]
+
+    # 第二台：GPU 算力中心（未配置远端时为占位；配置后做真实健康检查）
+    try:
+        from llms.remote_llm import check_connection, load_llm_config
+
+        config = load_llm_config()
+        if inference_is_remote():
+            started = time.perf_counter()
+            info = check_connection(timeout=4)
+            latency = (time.perf_counter() - started) * 1000
+            available = bool(info.get("available"))
+            status = "online" if info.get("ok") and available else ("warn" if info.get("ok") else "offline")
+            detail = f"模型：{config.model}"
+            if info.get("ok") and not available:
+                detail += "（模型未找到）"
+            if not info.get("ok"):
+                detail += f" · {str(info.get('error', ''))[:60]}"
+            nodes.append(
+                {
+                    "id": "node2",
+                    "index": "02",
+                    "name": "GPU 算力中心",
+                    "role": "GPU 推理与算力",
+                    "role_en": "Inference",
+                    "endpoint": config.base_url,
+                    "status": status,
+                    "latency_ms": round(latency, 1),
+                    "detail": detail,
+                }
+            )
+        else:
+            nodes.append(
+                {
+                    "id": "node2",
+                    "index": "02",
+                    "name": "GPU 算力中心",
+                    "role": "GPU 推理与算力",
+                    "role_en": "Inference",
+                    "endpoint": f"{targets['node2']}:11434（规划）",
+                    "status": "placeholder",
+                    "latency_ms": 0,
+                    "detail": "占位：Qwen3-4B 微调 + Qwen-Agent + Ollama",
+                }
+            )
+    except Exception as exc:  # noqa: BLE001
+        nodes.append(
+            {
+                "id": "node2",
+                "index": "02",
+                "name": "GPU 算力中心",
+                "role": "GPU 推理与算力",
+                "role_en": "Inference",
+                "endpoint": os.getenv("OLLAMA_BASE_URL", "未配置"),
+                "status": "offline",
+                "latency_ms": 0,
+                "detail": f"{type(exc).__name__}: {exc}",
+            }
+        )
 
     # 第三台：工具与图数据节点（当前开发环境部署在本机）
     try:
@@ -412,9 +465,10 @@ def node_status() -> list[dict]:
 
 
 def debug_inference_status() -> dict:
-    """开发调试推理服务：Node2 未接入时，本机 Ollama 临时承担报告生成。"""
+    """当前推理服务状态（可能是远端 Node2，也可能是本机调试 Ollama）。"""
     result = {
         "ok": False,
+        "remote": inference_is_remote(),
         "base_url": os.getenv("OLLAMA_BASE_URL", ""),
         "model": os.getenv("OLLAMA_MODEL", ""),
         "latency_ms": None,
@@ -442,10 +496,9 @@ def debug_inference_status() -> dict:
 
 def deployment_mode() -> str:
     """当前运行模式：开发调试 / 三机内网。"""
-    base_url = os.getenv("OLLAMA_BASE_URL", "")
-    if "127.0.0.1" in base_url or "localhost" in base_url:
-        return "开发调试模式：Node2 占位，本机 Ollama 临时推理"
-    return "三机内网模式：Node2 GPU 节点已接入"
+    if inference_is_remote():
+        return "三机内网模式：Node2 推理服务已配置"
+    return "开发调试模式：Node2 占位，本机 Ollama 临时推理"
 
 
 def node_targets() -> dict:
