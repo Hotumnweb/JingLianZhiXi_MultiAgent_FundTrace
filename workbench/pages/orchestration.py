@@ -51,7 +51,7 @@ def _render_task_result(task: dict) -> None:
     intermediate = task.get("intermediate") or {}
     task_id = task.get("id", "")
 
-    theme.section("任务结果", f"任务号 {task_id} · 已写入任务队列与调用日志")
+    theme.section("任务结果", f"任务号 {task_id}")
     cols = st.columns(5)
     cols[0].metric("可疑账户", task.get("suspicious") or len(suspects))
     cols[1].metric("归集账户", len(evidence.get("gather") or []))
@@ -140,7 +140,7 @@ def _render_task_result(task: dict) -> None:
 
 
 def render() -> None:
-    theme.section("元智能体调度", "任务下发 → 排队/执行 → 子智能体调用 → 结果汇总")
+    theme.section("元智能体调度", "任务下发 · 队列执行 · 调用追踪")
 
     queue = tasks.queue_summary()
     st.markdown(
@@ -154,19 +154,7 @@ def render() -> None:
         ),
         unsafe_allow_html=True,
     )
-    if services.inference_is_remote():
-        chain_note = (
-            "<b>调用链：</b>Node1 调度中心 → Node2 GPU 算力中心"
-            "（远端推理服务已配置）↔ Node3 工具与图数据节点（Neo4j / pandas）。"
-            "Node1 只负责任务下发、调度与结果汇总。"
-        )
-    else:
-        chain_note = (
-            "<b>调用链：</b>Node1 调度中心 → Node2 GPU 算力中心"
-            "（Qwen3-4B 微调 + Qwen-Agent，待接入）↔ Node3 工具与图数据节点"
-            "（Neo4j / pandas）。Node2 接入前，本机 Ollama 仅作为开发调试的临时推理服务。"
-        )
-    st.markdown(f'<div class="jz-note">{chain_note}</div>', unsafe_allow_html=True)
+    st.caption("Node1 调度中心 · Node2 GPU 推理 · Node3 图数据与工具")
 
     debug = services.debug_inference_status()
     left, right = st.columns([1.05, 1.95])
@@ -182,7 +170,7 @@ def render() -> None:
 
     with left:
         st.markdown("#### 任务下发")
-        st.caption("① 加载目标数据 → ② 下达侦查指令 → ③ 下发执行")
+        st.caption("加载目标数据 → 下达侦查指令 → 下发执行")
 
         pending_select = st.session_state.pop("pending_select_flow", None)
         if pending_select in source_paths:
@@ -190,7 +178,7 @@ def render() -> None:
 
         if source_paths:
             flow_file = st.selectbox(
-                "流水数据源（Node3 动态读取）",
+                "流水数据源",
                 options=source_paths,
                 format_func=lambda path: source_labels.get(path, path),
                 key="flow_source_select",
@@ -198,30 +186,29 @@ def render() -> None:
             )
         else:
             flow_file = ""
-            st.warning("data/ 下暂未发现可解析的流水 CSV，请用下方“从文件夹选择 CSV”导入。")
+            st.warning("data/ 下暂未发现可解析的流水 CSV，请用下方“导入 CSV”添加。")
 
-        st.caption("数据源标签中的行数是平台实时扫描文件得到的，不是写死的数字。")
-
-        with st.form("flow_upload_form", clear_on_submit=True):
-            uploaded = st.file_uploader(
-                "从文件夹选择 CSV（导入到 data/imports/）",
-                type=["csv"],
-                help="浏览器会打开文件选择器；CSV 会复制到 data/imports/，并参与后续动态识别。",
-            )
-            import_clicked = st.form_submit_button("导入并识别")
-        st.caption("支持 AML 标准格式与通用中文流水（交易时间/金额/付款账号/收款账号）；行数按文件实时统计。")
-        if import_clicked:
-            if uploaded is None:
-                st.warning("请先在文件选择器中选择一个 CSV 文件")
-            else:
-                try:
-                    info = services.save_uploaded_flow(uploaded.name, uploaded.getvalue())
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"导入失败：{type(exc).__name__}: {exc}")
+        with st.expander("导入自定义 CSV", expanded=False):
+            with st.form("flow_upload_form", clear_on_submit=True):
+                uploaded = st.file_uploader(
+                    "选择 CSV 流水",
+                    type=["csv"],
+                    help="CSV 会保存到 data/imports/，并按表头自动识别格式。",
+                )
+                import_clicked = st.form_submit_button("导入并识别")
+            st.caption("支持 AML 标准格式 / 通用中文流水")
+            if import_clicked:
+                if uploaded is None:
+                    st.warning("请先在文件选择器中选择一个 CSV 文件")
                 else:
-                    st.session_state["pending_select_flow"] = info["path"]
-                    st.success(f"已导入：{info['path']}（{info['rows']:,} 条）")
-                    st.rerun()
+                    try:
+                        info = services.save_uploaded_flow(uploaded.name, uploaded.getvalue())
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"导入失败：{type(exc).__name__}: {exc}")
+                    else:
+                        st.session_state["pending_select_flow"] = info["path"]
+                        st.success(f"已导入：{info['path']}（{info['rows']:,} 条）")
+                        st.rerun()
 
         load_cols = st.columns([1, 2])
         if load_cols[0].button("加载目标数据", width="stretch", disabled=not flow_file):
@@ -244,7 +231,7 @@ def render() -> None:
                 f"{loaded_info['rows']:,} 条 · {loaded_info['format']}"
             )
         else:
-            load_cols[1].caption("选择数据源后，先点“加载目标数据”校验格式和条数。")
+            load_cols[1].caption("选择数据源后，先加载目标。")
 
         template = st.selectbox(
             "指令模板（可选）",
@@ -260,48 +247,32 @@ def render() -> None:
             height=100,
             persist_state="session",
         )
-        st.caption("模板只负责快速填入上面的“侦查任务描述”；真正执行的是描述框里的内容。")
+        st.caption("模板用于快速填入描述，执行以描述内容为准。")
 
         enable_report = st.toggle(
             "执行 AI 研判报告",
             value=report_agent_enabled(),
-            help="调用 Node2 推理服务；关闭后只执行图工具分析",
+            help="关闭后只执行图工具分析",
         )
 
         ready = bool(flow_file and loaded_file == flow_file and instruction.strip())
         if not ready:
-            missing = []
-            if not flow_file:
-                missing.append("加载目标数据")
-            elif loaded_file != flow_file:
-                missing.append("加载目标数据")
-            if not instruction.strip():
-                missing.append("下达侦查指令")
-            st.caption("完成以下步骤后执行按钮才可用：" + "、".join(missing))
+            st.caption("请先加载目标数据并填写任务描述。")
 
         if debug["ok"]:
-            if debug.get("remote"):
-                st.markdown(
-                    theme.pill(f"Node2 推理服务在线：{debug['model']}", "ok"),
-                    unsafe_allow_html=True,
-                )
-                st.caption(f"{debug['base_url']} · 远端 GPU 节点")
-            else:
-                st.markdown(
-                    theme.pill(f"调试推理可用：{debug['model']}", "ok"),
-                    unsafe_allow_html=True,
-                )
-                st.caption(f"{debug['base_url']} · 本机 Ollama 临时推理")
-        else:
-            label = "Node2 推理服务不可用" if debug.get("remote") else "调试推理不可用"
             st.markdown(
-                theme.pill(f"{label}：报告将降级为规则模板", "warn"),
+                theme.pill(f"推理服务在线 · {debug['model']}", "ok"),
                 unsafe_allow_html=True,
             )
-            st.caption(debug.get("error", ""))
+        else:
+            st.markdown(
+                theme.pill("推理服务离线 · 报告将降级为规则模板", "warn"),
+                unsafe_allow_html=True,
+            )
+            st.caption("请检查 Node2 的 Ollama 服务和 11434 端口。")
 
         if queue[tasks.STATUS_QUEUED]:
-            st.caption(f"当前有 {queue[tasks.STATUS_QUEUED]} 个任务在队列中，建议先执行队列。")
+            st.caption(f"队列中有 {queue[tasks.STATUS_QUEUED]} 个任务待执行。")
 
         submit_queue = st.button(
             "下发任务到队列", width="stretch", disabled=not ready
@@ -329,11 +300,7 @@ def render() -> None:
         if last_task:
             _render_task_result(last_task)
         else:
-            st.markdown(
-                '<div class="jz-note">先加载目标数据并填写侦查任务描述；'
-                '下发后到“任务队列”执行，或直接下发并立即执行。</div>',
-                unsafe_allow_html=True,
-            )
+            st.caption("从左侧加载目标并填写任务描述，然后下发任务。")
         return
 
     if run_graph_only:

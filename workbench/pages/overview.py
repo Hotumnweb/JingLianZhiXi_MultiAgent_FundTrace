@@ -18,7 +18,7 @@ def render() -> None:
     queue = tasks.queue_summary()
     latest_task = queue.get("latest")
 
-    theme.section("调度总览", "元智能体运行状态 · 三节点集群 · 数据分析结果")
+    theme.section("调度总览", "运行态势 · 三节点集群 · 研判结果")
 
     tx_count = int(graph.get("transfers") or 0)
     if graph.get("error"):
@@ -42,7 +42,7 @@ def render() -> None:
     for col, (label, value, hint, accent) in zip(cols, kpis):
         col.markdown(theme.kpi_card(label, value, hint, accent), unsafe_allow_html=True)
 
-    theme.section("任务队列状态", "Coordinator 维护的任务队列与调度记录")
+    theme.section("任务队列状态", "任务进度与调度记录")
     queue_cols = st.columns(5)
     queue_cols[0].metric("排队中", queue[tasks.STATUS_QUEUED])
     queue_cols[1].metric("执行中", queue[tasks.STATUS_RUNNING])
@@ -61,47 +61,23 @@ def render() -> None:
     else:
         queue_cols[4].metric("最近任务", "—")
 
-    remote = services.inference_is_remote()
-    theme.section(
-        "三节点集群",
-        f"Node1 调度 · Node2 算力{'（远端已配置）' if remote else '（占位）'} · Node3 工具与图数据",
-    )
+    theme.section("三节点集群", "Node1 调度 · Node2 推理 · Node3 图数据")
     node_cols = st.columns(3)
     for col, node in zip(node_cols, nodes):
         col.markdown(theme.node_card(node), unsafe_allow_html=True)
-    targets = services.node_targets()
-    st.markdown(
-        theme.pill(
-            f"内网规划：Node2 {targets['node2']} · Node3 {targets['node3']}",
-            "muted",
-        ),
-        unsafe_allow_html=True,
-    )
-    if remote:
-        node_note = (
-            "Node2 推理服务已配置：任务下发后由远端 GPU 节点生成研判报告；"
-            "Node1 只负责任务调度、状态管理与结果汇总。"
-        )
-    else:
-        node_note = (
-            "Node2 接入前，第一台使用内置 LangGraph 调度器和本机 Ollama 完成开发联调；"
-            "Node2 接入后，任务拆解、多轮 AI 调用由 Qwen3-4B + Qwen-Agent 元智能体执行。"
-        )
-    st.markdown(f'<div class="jz-note">{node_note}</div>', unsafe_allow_html=True)
 
     left, right = st.columns([1, 1])
     with left:
-        theme.section("图规则命中分布", "Node3 工具执行结果")
+        theme.section("图规则命中分布")
         st.plotly_chart(graph_view.rule_bar_figure(summary), width="stretch")
     with right:
-        theme.section("证据强度排行", "归集上游数 / 环形参与 / 快进快出综合评分")
+        theme.section("证据强度排行")
         st.plotly_chart(graph_view.risk_bar_figure(risk), width="stretch")
 
     theme.section("最近一次研判")
     if not report:
         st.markdown(
-            '<div class="jz-note">暂无研判报告。到“元智能体调度”下发一次任务后，'
-            "报告与证据会自动汇总到这里。</div>",
+            '<div class="jz-note">暂无研判报告。下发任务后，报告与证据会自动汇总到这里。</div>',
             unsafe_allow_html=True,
         )
         return
@@ -114,4 +90,3 @@ def render() -> None:
 
     preview = services.read_text(report["path"])
     st.markdown(preview[:1600] + ("\n\n……" if len(preview) > 1600 else ""))
-    st.caption(f"完整报告：{report['path']}")

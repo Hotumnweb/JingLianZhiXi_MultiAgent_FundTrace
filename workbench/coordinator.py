@@ -34,10 +34,10 @@ def _now() -> str:
 
 
 def inference_node_label() -> str:
-    """Node2 的显示名称（占位/调试/远程）。"""
+    """Node2 的显示名称（本机调试/远程 GPU）。"""
     base_url = os.getenv("OLLAMA_BASE_URL", "")
     if "127.0.0.1" in base_url or "localhost" in base_url:
-        return "Node2（占位：本机 Ollama 调试）"
+        return "Node2（本机调试推理）"
     return "Node2（GPU 算力节点）"
 
 

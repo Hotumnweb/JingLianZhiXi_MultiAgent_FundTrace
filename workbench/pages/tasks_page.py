@@ -196,7 +196,7 @@ def _execute_queue(pending: list[dict]) -> None:
 
 
 def render() -> None:
-    theme.section("任务队列", "任务排队、执行状态、子智能体调用日志与中间结果汇总")
+    theme.section("任务队列", "排队、执行与调用记录")
 
     flash = st.session_state.pop("queue_flash", None)
     if flash:

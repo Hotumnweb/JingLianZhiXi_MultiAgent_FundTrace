@@ -7,7 +7,7 @@ from workbench import graph_view, services, tasks, theme
 
 
 def render() -> None:
-    theme.section("规则与指标", "Node3 工具执行的图规则 · 离线评测（标签不进入智能体输入）")
+    theme.section("规则与指标", "图规则命中 · 离线评测")
 
     graph = services.graph_stats()
     has_graph = bool(graph.get("transfers"))
@@ -42,13 +42,12 @@ def render() -> None:
     if not payload:
         st.caption("当前没有任务证据；先到“元智能体调度”加载目标并下发任务。")
 
-    theme.section("离线评测指标", "用数据集标签事后评测（标签不会进入智能体输入）")
+    theme.section("离线评测指标", "用数据集标签事后评测")
     st.markdown(
         """
         <div class="jz-note">
-        真实办案场景没有标签，本页仅用于验证算法效果、量化答辩指标。
-        点击下方按钮会重新执行三条图规则，并读取 <code>accounts.csv / laundering_rings.csv</code>
-        中的标签计算精确率、召回率与团伙级召回。
+        真实办案场景没有标签；本页仅用于验证算法效果与量化指标。
+        标签只参与事后评测，不进入智能体输入。
         </div>
         """,
         unsafe_allow_html=True,
@@ -86,7 +85,7 @@ def render() -> None:
                 result = None
 
         if not result:
-            st.info("点击上方按钮现场复算；也可以直接运行 `python scripts/evaluate_on_synthetic_aml.py`。")
+            st.info("点击上方按钮现场复算。")
         else:
             graph_result = result.get("graph") or {}
             if graph_result.get("transfers") and graph_result["transfers"] != 42175:

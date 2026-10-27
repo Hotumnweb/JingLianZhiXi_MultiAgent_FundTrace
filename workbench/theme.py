@@ -47,39 +47,86 @@ h1, h2, h3, h4 { color: var(--jz-text); }
 p, li, label, span { color: var(--jz-text); }
 a { color: var(--jz-accent); }
 
+/* 品牌区 */
+.jz-brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 2px 2px 14px 2px;
+}
+.jz-brand-mark {
+  width: 36px; height: 36px; flex: 0 0 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #7dd3fc, #38bdf8 45%, #a78bfa);
+  color: #04121f; font-size: 18px; font-weight: 900;
+  box-shadow: 0 8px 22px rgba(56, 189, 248, .22);
+}
+.jz-brand-copy { min-width: 0; }
+.jz-brand-name {
+  color: #e0f2fe; font-size: 18px; font-weight: 800;
+  letter-spacing: .6px; line-height: 1.2;
+}
+.jz-brand-sub {
+  color: #64748b; font-size: 10px; line-height: 1.45;
+  margin-top: 3px; letter-spacing: .15px;
+}
+
+/* 侧边导航 */
+[data-testid="stSidebar"] [data-testid="stRadio"] > div { gap: .18rem; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label {
+  padding: 7px 9px; border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background .15s ease, border-color .15s ease;
+}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+  background: rgba(56, 189, 248, .08);
+  border-color: rgba(56, 189, 248, .16);
+}
+
 /* 顶部标题 */
 .jz-hero {
+  position: relative; overflow: hidden;
   border: 1px solid var(--jz-border);
-  background: linear-gradient(120deg, rgba(15, 23, 42, .92), rgba(8, 13, 24, .75));
-  border-radius: 18px;
-  padding: 20px 24px;
-  margin-bottom: 18px;
-  box-shadow: 0 18px 45px rgba(0, 0, 0, .35);
+  background:
+    linear-gradient(120deg, rgba(15, 23, 42, .94), rgba(8, 13, 24, .82)),
+    radial-gradient(520px 220px at 88% 0%, rgba(56, 189, 248, .18), transparent 70%);
+  border-radius: 16px;
+  padding: 18px 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .30);
+}
+.jz-hero:after {
+  content: ""; position: absolute; right: -60px; top: -90px;
+  width: 280px; height: 280px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, .16), transparent 68%);
+  pointer-events: none;
 }
 .jz-hero-title {
-  font-size: 25px; font-weight: 800; letter-spacing: .5px;
-  background: linear-gradient(90deg, #7dd3fc, #a78bfa, #fbbf24);
+  position: relative; z-index: 1;
+  font-size: clamp(20px, 2.15vw, 30px);
+  font-weight: 800; letter-spacing: .6px; line-height: 1.32;
+  background: linear-gradient(90deg, #7dd3fc, #a78bfa 62%, #fbbf24);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.jz-hero-sub { color: var(--jz-muted); font-size: 13px; margin-top: 6px; }
+.jz-hero-sub { color: var(--jz-muted); font-size: 12px; margin-top: 6px; }
 .jz-hero-badges { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* 徽标 */
 .jz-pill {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 11px; border-radius: 999px;
-  font-size: 12px; letter-spacing: .3px;
+  font-size: 11px; letter-spacing: .3px;
   border: 1px solid var(--jz-border);
   background: rgba(148, 163, 184, .08);
 }
 
 /* 分区标题 */
-.jz-section { margin: 16px 0 10px 0; }
+.jz-section { margin: 18px 0 9px 0; }
 .jz-section-title {
-  font-size: 16px; font-weight: 700; color: #f1f5f9;
+  font-size: 15px; font-weight: 700; color: #f1f5f9;
   border-left: 3px solid var(--jz-accent); padding-left: 10px;
+  letter-spacing: .2px;
 }
-.jz-section-sub { color: var(--jz-muted); font-size: 12px; margin-top: 4px; padding-left: 13px; }
+.jz-section-sub { color: #64748b; font-size: 11px; margin-top: 4px; padding-left: 13px; }
 
 /* KPI 卡 */
 .jz-kpi {
@@ -88,12 +135,17 @@ a { color: var(--jz-accent); }
   background: var(--jz-panel);
   border-radius: 14px;
   padding: 14px 16px;
-  min-height: 108px;
-  box-shadow: 0 10px 26px rgba(0,0,0,.25);
+  min-height: 100px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.22);
+  transition: transform .16s ease, border-color .16s ease;
 }
-.jz-kpi-label { color: var(--jz-muted); font-size: 12px; letter-spacing: .5px; }
-.jz-kpi-value { color: var(--accent, #38bdf8); font-size: 28px; font-weight: 800; line-height: 1.25; margin-top: 4px; }
-.jz-kpi-hint { color: #64748b; font-size: 11px; margin-top: 4px; }
+.jz-kpi:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, .32);
+}
+.jz-kpi-label { color: var(--jz-muted); font-size: 11px; letter-spacing: .5px; }
+.jz-kpi-value { color: var(--accent, #38bdf8); font-size: 29px; font-weight: 800; line-height: 1.25; margin-top: 4px; }
+.jz-kpi-hint { color: #64748b; font-size: 10px; margin-top: 4px; }
 
 /* 节点卡 */
 .jz-node {
@@ -101,13 +153,18 @@ a { color: var(--jz-accent); }
   background: var(--jz-panel);
   border-radius: 14px;
   padding: 14px 15px;
-  min-height: 150px;
+  min-height: 140px;
+  transition: transform .16s ease, border-color .16s ease;
+}
+.jz-node:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, .28);
 }
 .jz-node-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.jz-node-role { color: var(--jz-muted); font-size: 11px; letter-spacing: .4px; }
+.jz-node-role { color: var(--jz-muted); font-size: 10px; letter-spacing: .4px; }
 .jz-node-name { color: #f8fafc; font-weight: 700; font-size: 14px; margin: 7px 0 4px 0; }
-.jz-node-detail { color: var(--jz-muted); font-size: 12px; line-height: 1.55; }
-.jz-node-endpoint { color: #64748b; font-size: 11px; margin-top: 5px; word-break: break-all; }
+.jz-node-detail { color: var(--jz-muted); font-size: 11px; line-height: 1.55; }
+.jz-node-endpoint { color: #64748b; font-size: 10px; margin-top: 5px; word-break: break-all; }
 
 /* 流水线阶段 */
 .jz-stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 12px 0; }
@@ -249,6 +306,22 @@ pre code {
 [data-testid="stMetricLabel"] p,
 [data-testid="stMetricValue"] {
   color: #e2e8f0 !important;
+}
+[data-testid="stAppDeployButton"] { display: none !important; }
+[data-testid="stStatusWidget"] { display: none !important; }
+.stButton > button, .stDownloadButton > button {
+  font-size: 13px; font-weight: 600;
+}
+[data-testid="stMetric"] {
+  transition: border-color .16s ease, transform .16s ease;
+}
+[data-testid="stMetric"]:hover {
+  border-color: rgba(56, 189, 248, .28);
+  transform: translateY(-1px);
+}
+div[data-testid="stCaptionContainer"] p {
+  color: #64748b !important;
+  font-size: 11px;
 }
 #MainMenu, footer { visibility: hidden; }
 </style>
@@ -427,17 +500,17 @@ def node_card(node: dict) -> str:
         "offline": "离线",
     }.get(status, "未知")
     latency = node.get("latency_ms")
-    if status == "placeholder":
-        latency_text = "待接入"
+    if status in {"offline", "placeholder"}:
+        status_label = status_text
     elif isinstance(latency, (int, float)) and latency > 0:
-        latency_text = f"{latency:.0f} ms"
+        status_label = f"{status_text} · {latency:.0f} ms"
     else:
-        latency_text = "本机"
+        status_label = f"{status_text} · 本机"
     return f"""
     <div class="jz-node">
       <div class="jz-node-head">
         <span class="jz-node-role">NODE {esc(node.get('index', ''))} · {esc(node.get('role_en', ''))}</span>
-        {pill(f"{status_text} · {latency_text}", tone)}
+        {pill(status_label, tone)}
       </div>
       <div class="jz-node-name">{esc(node.get('name', ''))}</div>
       <div class="jz-node-detail">{esc(node.get('detail', ''))}</div>

@@ -64,7 +64,7 @@ def _clear_console_result() -> None:
 
 
 def render() -> None:
-    theme.section("Neo4j 操作台", "Node3 · 现场执行只读 Cypher，复核图谱与侦查规则")
+    theme.section("Neo4j 操作台", "只读 Cypher · 图谱与规则复核")
 
     stats = services.graph_stats()
     cols = st.columns(4)
@@ -73,11 +73,7 @@ def render() -> None:
     cols[2].metric("数据库端", stats.get("error") and "离线" or "在线")
     cols[3].metric("操作模式", "只读查询")
 
-    st.markdown(
-        '<div class="jz-note">这里执行的是 <b>只读 Cypher</b>，用于向评委现场证明图谱、'
-        "关系与规则查询结果；写操作请通过“元智能体调度”的任务流程或 Neo4j Browser 完成。</div>",
-        unsafe_allow_html=True,
-    )
+    st.caption("只读查询，用于复核图谱结构与规则结果。")
 
     mode = st.radio(
         "查询方式",

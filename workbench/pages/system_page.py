@@ -7,15 +7,15 @@ from workbench import services, theme
 
 
 def render() -> None:
-    node2_label = "已接入" if services.inference_is_remote() else "占位"
-    theme.section("节点与工具", f"Node1 调度 · Node2 算力（{node2_label}） · Node3 工具与图数据")
+    theme.section("节点与工具", "三节点状态 · 运行环境 · 接口清单")
 
     top_cols = st.columns([1, 1, 4])
     with top_cols[0]:
-        if st.button("刷新节点状态", width="stretch"):
+        if st.button("刷新状态", width="stretch"):
             st.rerun()
     with top_cols[1]:
-        st.markdown(theme.pill(services.deployment_mode(), "info"), unsafe_allow_html=True)
+        mode = "三机内网协同" if services.inference_is_remote() else "开发调试模式"
+        st.markdown(theme.pill(mode, "info"), unsafe_allow_html=True)
 
     nodes = services.node_status()
     node_cols = st.columns(3)
@@ -23,7 +23,7 @@ def render() -> None:
         col.markdown(theme.node_card(node), unsafe_allow_html=True)
 
     targets = services.node_targets()
-    theme.section("三机网络规划", "比赛现场内网地址（当前为开发调试环境）")
+    theme.section("三机网络", "节点角色与内网地址")
     st.dataframe(
         [
             {
@@ -36,17 +36,13 @@ def render() -> None:
                 "节点": "Node2",
                 "角色": "GPU 推理与算力（Inference）",
                 "目标地址": targets["node2"],
-                "当前状态": (
-                    "已配置远端推理服务"
-                    if services.inference_is_remote()
-                    else "占位（Qwen3-4B + Qwen-Agent 待接入）"
-                ),
+                "当前状态": "已接入" if services.inference_is_remote() else "待接入",
             },
             {
                 "节点": "Node3",
                 "角色": "工具执行与图数据（Tool & Graph）",
                 "目标地址": targets["node3"],
-                "当前状态": "开发调试部署于本机",
+                "当前状态": "本机部署",
             },
         ],
         width="stretch",
@@ -70,13 +66,13 @@ def render() -> None:
             hide_index=True,
         )
 
-        if st.button("外网隔离检测（断网自证）", type="primary"):
+        if st.button("断网自检", type="primary"):
             result = services.external_network_check()
             services.audit_event("network_check", f"target={result['target']}", result)
             if result["online"]:
-                st.warning("当前可访问外网（开发环境正常）。现场演示前请断开外网，再点击验证。")
+                st.warning("当前仍可访问外网；现场演示前请断开外网后重试。")
             else:
-                st.success(f"外网不可达（探测 {result['target']} 超时 / 拒绝），符合内网演示要求。")
+                st.success("外网不可达，符合内网演示要求。")
 
     with right:
         theme.section("接口与工具清单", "Node1 统一调度，Node2/Node3 提供能力")
@@ -84,7 +80,7 @@ def render() -> None:
             [
                 {"能力": "任务调度", "提供方": "Node1 · LangGraph Supervisor", "接口/协议": "进程内 StateGraph"},
                 {"能力": "任务队列/状态", "提供方": "Node1 · Coordinator", "接口/协议": "runtime/tasks/*.json"},
-                {"能力": "大模型推理", "提供方": "Node2 · Qwen3-4B + Qwen-Agent + Ollama", "接口/协议": "HTTP /api/chat" + ("（已配置）" if services.inference_is_remote() else "（待接入）")},
+                {"能力": "大模型推理", "提供方": "Node2 · Qwen3.5-9B-tools + Ollama", "接口/协议": "/api/chat + tools"},
                 {"能力": "图数据库", "提供方": "Node3 · Neo4j", "接口/协议": "Bolt 7687"},
                 {"能力": "图规则与子图查询", "提供方": "Node3 · Cypher", "接口/协议": "Bolt / Cypher"},
                 {"能力": "流水解析", "提供方": "Node3 · pandas / pdfplumber", "接口/协议": "本地工具"},
@@ -95,28 +91,26 @@ def render() -> None:
             hide_index=True,
         )
 
-    theme.section("Node2 接入状态", "GPU 算力中心（已接入）")
+    theme.section("Node2 推理服务", "GPU 算力中心")
     st.markdown(
         f"""
-        1. 第二台已部署 Ollama（0.40.10），模型 **qwen3.5-9b-tools:q4km**（Q4_K_M，带 tools）；
-        2. Node1 通过 `http://{targets['node2']}:11434` 调用 `/api/chat` 与 tools；
-        3. Qwen3.5 默认 thinking，必须 `LLM_THINK=false`，否则 `message.content` 可能为空；
-        4. Qwen-Agent 0.0.34 已安装，Node2 FastAPI（8010）尚未启动；当前先用 Ollama 原生 tools 联调；
-        5. “元智能体自主分析”页已跑通工具调用；“元智能体调度”页仍走稳定 Supervisor 流水线。
+        - 模型：**qwen3.5-9b-tools:q4km**（Q4_K_M，带 tools）
+        - 调用方式：`http://{targets['node2']}:11434` · `/api/chat` + tools
+        - Qwen3.5 需关闭 thinking（`LLM_THINK=false`）
+        - Qwen-Agent 8010 服务暂未接入，当前直接使用 Ollama 原生接口
         """
     )
 
-    theme.section("Node3 工具与图数据", "当前部署在本机调试")
+    theme.section("Node3 工具与图数据", "本机部署")
     st.markdown(
         """
-        - **Neo4j 图数据库**：存储账户节点与转账边，执行快进快出 / 多层归集 / 环形转账规则；
-        - **文件解析**：pandas 解析 CSV/Excel 流水，后续可加 pdfplumber / OCR；
-        - **可选嵌入模型**：CPU 有余量时运行轻量嵌入模型，为 RAG 检索提供支持；
-        - 接入方式：修改 `.env` 的 `NEO4J_URI` 为第三台地址，平台无需改代码。
+        - **Neo4j 图数据库**：账户节点、TRANSFER 关系、Cypher 查询
+        - **文件解析**：pandas 解析 CSV 流水
+        - **图规则**：快进快出 / 多层归集 / 环形转账
         """
     )
 
-    theme.section("调度日志", "Node1 记录任务下发、完成、失败与外网检测事件")
+    theme.section("调度日志", "任务与检测事件")
     audit = services.read_audit(60)
     if audit:
         st.dataframe(
@@ -135,16 +129,16 @@ def render() -> None:
     else:
         st.info("暂无调度日志。下发一次任务或执行外网检测后会自动记录。")
 
-    theme.section("现场检查清单", "答辩前 60 秒自检")
-    checklist = [
-        ("Node1 调度中心", "平台正常打开、任务可下发"),
-        ("Node2 算力节点", "占位阶段可先用本机 Ollama 调试；正式演示前接入 Qwen3-4B"),
-        ("Node3 工具与图数据", "Neo4j 已启动，图谱可查询"),
-        ("外网隔离", "点击“外网隔离检测”确认外网不可达"),
-        ("研判报告", "任务完成后报告与证据已归档"),
-    ]
-    for text, detail in checklist:
-        st.markdown(
-            f"{theme.pill('✓', 'ok')} **{text}** — {detail}",
-            unsafe_allow_html=True,
-        )
+    with st.expander("赛前检查清单", expanded=False):
+        checklist = [
+            ("Node1 调度中心", "平台正常打开、任务可下发"),
+            ("Node2 算力节点", "Ollama 在线、模型已加载、11434 可达"),
+            ("Node3 工具与图数据", "Neo4j 已启动，图谱可查询"),
+            ("外网隔离", "断网自检确认外网不可达"),
+            ("研判报告", "任务完成后报告与证据已归档"),
+        ]
+        for text, detail in checklist:
+            st.markdown(
+                f"{theme.pill('✓', 'ok')} **{text}** — {detail}",
+                unsafe_allow_html=True,
+            )

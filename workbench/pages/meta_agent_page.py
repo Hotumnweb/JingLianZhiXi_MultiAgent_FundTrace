@@ -72,7 +72,7 @@ def _render_trace(result: dict) -> None:
                     language="json",
                 )
 
-    theme.section("元智能体最终研判", "由 Node2 Qwen3.5 基于工具事实生成")
+    theme.section("元智能体最终研判")
     answer = final.get("answer") or ""
     if answer:
         with st.container(border=True):
@@ -88,31 +88,23 @@ def _render_trace(result: dict) -> None:
 
 
 def render() -> None:
-    theme.section(
-        "元智能体自主分析",
-        "Node2 Qwen3.5-9B-tools · 自主选择工具 → Node1/Node3 执行 → 观察结果 → 总结",
-    )
+    theme.section("元智能体自主分析", "自主选择工具 · 执行回传 · 研判总结")
 
     debug = services.debug_inference_status()
     if debug.get("ok"):
         st.markdown(
-            theme.pill(f"Node2 工具调用模型在线：{debug['model']}", "ok"),
+            theme.pill(f"工具调用模型在线 · {debug['model']}", "ok"),
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            theme.pill("Node2 推理服务不可用，无法启动自主分析", "warn"),
+            theme.pill("推理服务不可用", "warn"),
             unsafe_allow_html=True,
         )
 
-    st.markdown(
-        '<div class="jz-note">本页是真正的 <b>工具调用元智能体实验台</b>：'
-        "模型先决定调用哪个工具，Node1 执行工具并把结果回传，模型再决定继续查还是总结。"
-        "与“元智能体调度”页的固定 Supervisor 流水线区分演示，可作为升级能力展示。</div>",
-        unsafe_allow_html=True,
-    )
+    st.caption("模型自主选择工具，Node1 / Node3 执行并回传结果，最终生成研判。")
 
-    with st.expander("当前可调用工具", expanded=False):
+    with st.expander("可调用工具", expanded=False):
         st.dataframe(
             [
                 {
@@ -165,7 +157,7 @@ def render() -> None:
 
     stored = st.session_state.get("meta_agent_result")
     if not stored:
-        st.info("输入任务后点击“启动元智能体”；模型会自己决定先查图谱、查证据还是算指标。")
+        st.info("输入任务后启动；模型将自主决定查询顺序。")
         return
 
     _render_trace(stored)

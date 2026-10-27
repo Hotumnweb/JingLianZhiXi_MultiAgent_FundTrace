@@ -1,4 +1,4 @@
-# “警链智析”——面向电诈资金图谱的元智能体调度系统
+# 警链智析-多智能体驱动的涉诈资金穿透研判系统
 
 > 项目仓库：<https://github.com/Hotumnweb/JingLianZhiXi_MultiAgent_FundTrace>
 > 当前版本：**v0.9 双机联调 + 工具调用元智能体实验台**

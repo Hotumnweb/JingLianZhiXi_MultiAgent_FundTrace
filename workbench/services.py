@@ -495,9 +495,9 @@ def node_status() -> list[dict]:
             status = "online" if info.get("ok") and available else ("warn" if info.get("ok") else "offline")
             detail = f"模型：{config.model}"
             if info.get("ok") and not available:
-                detail += "（模型未找到）"
-            if not info.get("ok"):
-                detail += f" · {str(info.get('error', ''))[:60]}"
+                detail = "模型未找到 · 请检查 Node2 模型名"
+            elif not info.get("ok"):
+                detail = "推理服务未连接 · 请检查 Node2 Ollama"
             nodes.append(
                 {
                     "id": "node2",
@@ -522,7 +522,7 @@ def node_status() -> list[dict]:
                     "endpoint": f"{targets['node2']}:11434（规划）",
                     "status": "placeholder",
                     "latency_ms": 0,
-                    "detail": "占位：Qwen3-4B 微调 + Qwen-Agent + Ollama",
+                    "detail": "推理服务未连接 · 等待 Node2",
                 }
             )
     except Exception as exc:  # noqa: BLE001
@@ -536,7 +536,7 @@ def node_status() -> list[dict]:
                 "endpoint": os.getenv("OLLAMA_BASE_URL", "未配置"),
                 "status": "offline",
                 "latency_ms": 0,
-                "detail": f"{type(exc).__name__}: {exc}",
+                "detail": "推理服务未连接 · 请检查 Node2 Ollama",
             }
         )
 
@@ -554,7 +554,7 @@ def node_status() -> list[dict]:
                 "name": "工具与图数据节点",
                 "role": "工具执行与图数据",
                 "role_en": "Tool & Graph",
-                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + "（本机调试）",
+                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + " · 本机",
                 "status": "online",
                 "latency_ms": latency,
                 "detail": (
@@ -571,10 +571,10 @@ def node_status() -> list[dict]:
                 "name": "工具与图数据节点",
                 "role": "工具执行与图数据",
                 "role_en": "Tool & Graph",
-                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + "（本机调试）",
+                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + " · 本机",
                 "status": "offline",
                 "latency_ms": 0,
-                "detail": f"{type(exc).__name__}: {exc}",
+                "detail": "Neo4j 未连接 · 请启动图数据库",
             }
         )
 

@@ -7,7 +7,7 @@ from workbench import graph_view, services, theme
 
 
 def render() -> None:
-    theme.section("图数据与工具", "Node3 · Neo4j 图数据库 + Cypher 查询")
+    theme.section("图数据与工具", "Neo4j 图数据库 · Cypher 查询")
 
     payload = services.latest_evidence()
     summary = services.evidence_summary(payload)
@@ -79,12 +79,9 @@ def render() -> None:
         else:
             st.caption("未命中归集账户")
 
-    theme.section("可疑账户证据强度排行", "按归集上游数 / 环形参与 / 快进快出命中综合评分")
+    theme.section("可疑账户证据强度排行", "综合评分")
     st.dataframe(risk[:20], width="stretch", hide_index=True)
-    st.caption(
-        "评分口径：归集上游数 ×12 + 环形参与 ×32 + 快进快出命中次数 ×9；"
-        "仅用于排序展示，不参与规则判定。明细来自当前证据 JSON。"
-    )
+    st.caption("评分仅用于排序：归集上游 ×12 + 环形参与 ×32 + 快进快出 ×9。")
 
     with st.expander("Neo4j 复核查询", expanded=False):
         st.markdown("**① 图谱规模：账户数**")

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""“警链智析”元智能体调度中枢（第一台电脑：Coordinator Node）。
+"""警链智析-多智能体驱动的涉诈资金穿透研判系统（第一台电脑：Coordinator Node）。
 
 职责边界（与三机架构一致）：
 - 本机只做任务下发、调度决策、状态管理、日志与结果汇总；
 - 不运行大模型、不运行图数据库；
-- 大模型能力调用 Node2（GPU 算力中心，当前占位）；
-- 图数据与重工具调用 Node3（工具与图数据节点，当前部署在本机调试）。
+- 大模型能力调用 Node2（GPU 算力中心）；
+- 图数据与重工具调用 Node3（工具与图数据节点）。
 
 启动：
     conda activate fraud_agent
@@ -29,9 +29,13 @@ from workbench.pages import (
 )
 
 # 目录名不能叫 platform（与 Python 标准库冲突），所以平台包命名为 workbench
+APP_NAME = "警链智析-多智能体驱动的涉诈资金穿透研判系统"
+APP_SHORT = "警链智析"
+APP_SUB = "多智能体驱动的涉诈资金穿透研判系统"
+
 st.set_page_config(
-    page_title="警链智析 · 元智能体调度中枢",
-    page_icon="🛰️",
+    page_title=APP_NAME,
+    page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -64,10 +68,13 @@ def _default_page_index() -> int:
 
 with st.sidebar:
     st.markdown(
-        "<div style='font-size:19px;font-weight:800;color:#7dd3fc;letter-spacing:1px;'>"
-        "警链智析</div>"
-        "<div style='font-size:11px;color:#64748b;margin-bottom:6px;'>"
-        "元智能体调度中枢 · Node1</div>",
+        '<div class="jz-brand">'
+        '<div class="jz-brand-mark">警</div>'
+        '<div class="jz-brand-copy">'
+        f'<div class="jz-brand-name">{APP_SHORT}</div>'
+        f'<div class="jz-brand-sub">{APP_SUB}</div>'
+        "</div>"
+        "</div>",
         unsafe_allow_html=True,
     )
     page = st.radio(
@@ -89,13 +96,9 @@ with st.sidebar:
             theme.pill(f"NODE {node['index']} · {node['role']}", tone),
             unsafe_allow_html=True,
         )
-    if services.inference_is_remote():
-        st.caption("Node2：远端推理服务已配置")
-    else:
-        st.caption("Node2：Qwen3-4B 微调 + Qwen-Agent 待接入")
-    if st.button("刷新节点状态", width="stretch"):
+    if st.button("刷新状态", width="stretch"):
         st.rerun()
 
-theme.hero(title="警链智析 · 元智能体调度中枢")
+theme.hero(title=APP_NAME)
 
 PAGES[page]()

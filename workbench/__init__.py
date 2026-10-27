@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-"""警链智析 · 元智能体调度中枢（第一台电脑 / Coordinator Node）。"""
+"""警链智析-多智能体驱动的涉诈资金穿透研判系统（第一台电脑 / Coordinator Node）。"""

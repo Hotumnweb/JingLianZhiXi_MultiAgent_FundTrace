@@ -84,7 +84,7 @@ def initial_state(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="警链智析——多智能体电诈资金穿透研判系统（v0.3 本地/双机版）"
+        description="警链智析-多智能体驱动的涉诈资金穿透研判系统（CLI）"
     )
     parser.add_argument(
         "flow_file",

@@ -9,7 +9,7 @@ from workbench import services, theme
 
 
 def render() -> None:
-    theme.section("研判报告", "元智能体输出汇总 · 报告与证据自动归档")
+    theme.section("研判报告", "报告与证据归档")
 
     items = services.report_index()
     if not items:
