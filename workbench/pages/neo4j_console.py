@@ -58,6 +58,11 @@ def _to_csv(rows: list[dict]) -> str:
     return output.getvalue()
 
 
+def _clear_console_result() -> None:
+    """查询条件变化时清掉上一次结果，避免把旧表当成新查询结果。"""
+    st.session_state.pop("neo4j_console_result", None)
+
+
 def render() -> None:
     theme.section("Neo4j 操作台", "Node3 · 现场执行只读 Cypher，复核图谱与侦查规则")
 
@@ -78,16 +83,22 @@ def render() -> None:
         "查询方式",
         ["预设查询", "自定义 Cypher"],
         horizontal=True,
+        on_change=_clear_console_result,
     )
 
     if mode == "预设查询":
-        preset_name = st.selectbox("选择查询", list(PRESETS.keys()))
+        preset_name = st.selectbox(
+            "选择查询",
+            list(PRESETS.keys()),
+            on_change=_clear_console_result,
+        )
         query = PRESETS[preset_name].strip()
     else:
         query = st.text_area(
             "输入只读 Cypher",
             value="MATCH (n:Account) RETURN n.id AS account LIMIT 10",
             height=180,
+            on_change=_clear_console_result,
         )
 
     st.code(query, language="cypher")
@@ -122,6 +133,15 @@ def render() -> None:
         return
 
     result = stored["result"]
+    executed_query = (stored.get("query") or "").strip()
+    if executed_query != query.strip():
+        st.warning(
+            "当前显示的查询条件已经改变，下面是**上一次**执行的结果；"
+            "请点击“执行查询”刷新，避免把旧结果当成新查询结果。"
+        )
+    st.caption(
+        f"当前结果对应查询：`{executed_query[:100]}`"
+    )
     st.caption(
         f"查询耗时 **{result['elapsed_ms']} ms** · 返回 **{result['row_count']}** 行"
         + ("（已截断到 200 行）" if result.get("truncated") else "")

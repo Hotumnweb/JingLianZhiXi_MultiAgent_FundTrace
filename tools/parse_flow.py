@@ -66,6 +66,26 @@ def _is_aml_dataset(df: pd.DataFrame) -> bool:
     return {"timestamp", "sender_account_id", "receiver_account_id", "amount_usd"} <= set(df.columns)
 
 
+def detect_flow_format(columns) -> str | None:
+    """根据表头判断是否是可解析的流水文件，并返回格式名称。
+
+    支持两种格式：
+    - AML 标准格式（timestamp / sender_account_id / receiver_account_id / amount_usd）
+    - 通用中文流水（交易时间 / 金额 / 付款账号 / 收款账号）
+    """
+    cols = {str(col).strip() for col in columns}
+    if {"timestamp", "sender_account_id", "receiver_account_id", "amount_usd"} <= cols:
+        return "AML 标准格式"
+
+    mapped: set[str] = set()
+    for target, aliases in COLUMN_ALIASES.items():
+        if any(col in aliases for col in cols):
+            mapped.add(target)
+    if all(field in mapped for field in REQUIRED_FIELDS):
+        return "通用中文流水"
+    return None
+
+
 def _parse_aml(df: pd.DataFrame) -> pd.DataFrame:
     """AML 数据集：只保留交易结构字段，丢弃答案标签。"""
     df = df.rename(columns=AML_COLUMN_MAP)

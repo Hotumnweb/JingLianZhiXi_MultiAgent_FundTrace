@@ -3,22 +3,35 @@
 
 import streamlit as st
 
+from pathlib import Path
+
 from workbench import graph_view, services, tasks, theme
 
 
 def render() -> None:
-    profile = services.dataset_profile()
     payload = services.latest_evidence()
     summary = services.evidence_summary(payload)
     graph = services.graph_stats()
     report = services.latest_report()
     nodes = services.node_status()
     risk = services.risk_rows(payload)
+    queue = tasks.queue_summary()
+    latest_task = queue.get("latest")
 
     theme.section("调度总览", "元智能体运行状态 · 三节点集群 · 数据分析结果")
 
+    tx_count = int(graph.get("transfers") or 0)
+    if graph.get("error"):
+        tx_hint = "Node3 未连接"
+    elif tx_count and latest_task and latest_task.get("flow_file"):
+        tx_hint = f"当前图谱 · {Path(str(latest_task['flow_file'])).name}"
+    elif tx_count:
+        tx_hint = "当前图谱内转账"
+    else:
+        tx_hint = "等待任务执行"
+
     kpis = [
-        ("交易流水", f"{profile['transactions']:,}", "合成 AML 数据集（USD）", theme.ACCENT),
+        ("交易流水", f"{tx_count:,}", tx_hint, theme.ACCENT),
         ("图账户节点", f"{graph.get('accounts', 0):,}", "Node3 · Neo4j", theme.PURPLE),
         ("可疑账户", summary["suspects"] if payload else "—", "等待任务执行" if not payload else "强证据优先", theme.RED),
         ("归集账户", summary["gather"] if payload else "—", "多层归集", theme.GOLD),
@@ -29,7 +42,6 @@ def render() -> None:
     for col, (label, value, hint, accent) in zip(cols, kpis):
         col.markdown(theme.kpi_card(label, value, hint, accent), unsafe_allow_html=True)
 
-    queue = tasks.queue_summary()
     theme.section("任务队列状态", "Coordinator 维护的任务队列与调度记录")
     queue_cols = st.columns(5)
     queue_cols[0].metric("排队中", queue[tasks.STATUS_QUEUED])

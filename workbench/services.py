@@ -49,6 +49,123 @@ def ensure_dirs() -> None:
 
 
 # ----------------------------------------------------------------------------
+# 流水数据源发现与校验（动态读取，不写死 42,175）
+# ----------------------------------------------------------------------------
+def _read_flow_header(path: Path):
+    """读取 CSV 表头，兼容 UTF-8 与 GBK。"""
+    import pandas as pd
+
+    try:
+        return pd.read_csv(path, nrows=0, encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        return pd.read_csv(path, nrows=0, encoding="gbk")
+
+
+def _count_csv_rows(path: Path) -> int:
+    """只读第一列统计行数，避免为大文件加载全部列。"""
+    import pandas as pd
+
+    try:
+        return int(pd.read_csv(path, usecols=[0], encoding="utf-8-sig").shape[0])
+    except UnicodeDecodeError:
+        return int(pd.read_csv(path, usecols=[0], encoding="gbk").shape[0])
+
+
+def inspect_flow_file(relative_path: str) -> dict:
+    """校验单个流水文件，返回实际行数、格式、列名和展示标签。"""
+    from tools.parse_flow import detect_flow_format
+
+    raw = Path(str(relative_path))
+    path = raw if raw.is_absolute() else (PROJECT_ROOT / raw)
+    path = path.resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"找不到流水文件：{relative_path}")
+    if path.suffix.lower() != ".csv":
+        raise ValueError("当前只支持 CSV 流水文件（.csv）")
+
+    header = _read_flow_header(path)
+    fmt = detect_flow_format(header.columns)
+    if not fmt:
+        raise ValueError(
+            "无法识别的流水格式；需要 AML 标准列（timestamp / sender_account_id / "
+            "receiver_account_id / amount_usd）或通用中文列（交易时间 / 金额 / "
+            f"付款账号 / 收款账号）。实际列名：{list(header.columns)}"
+        )
+    rows = _count_csv_rows(path)
+    if rows <= 0:
+        raise ValueError("流水文件没有数据行")
+    try:
+        rel = path.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        rel = str(path)
+    return {
+        "path": rel,
+        "abs_path": str(path),
+        "rows": rows,
+        "format": fmt,
+        "columns": [str(col) for col in header.columns],
+        "label": f"{rel} · {rows:,} 条",
+    }
+
+
+def scan_flow_files() -> list[dict]:
+    """动态扫描 data/ 下所有可解析的 CSV 流水文件。"""
+    if not DATA_DIR.exists():
+        return []
+    items: list[dict] = []
+    for path in sorted(DATA_DIR.rglob("*.csv")):
+        if not path.is_file() or path.name.startswith("."):
+            continue
+        try:
+            info = inspect_flow_file(str(path))
+        except Exception:  # noqa: BLE001 - 扫描阶段跳过非流水 CSV
+            continue
+        items.append(info)
+    # 上传目录排在最后，其余按路径排序，便于操作员先看到内置数据
+    items.sort(key=lambda item: (item["path"].startswith("data/imports/"), item["path"]))
+    return items
+
+
+def save_uploaded_flow(file_name: str, content: bytes) -> dict:
+    """把浏览器选择的 CSV 保存到 data/imports/ 并做格式校验。"""
+    from tools.parse_flow import detect_flow_format
+
+    safe_name = Path(str(file_name)).name
+    if not safe_name.lower().endswith(".csv"):
+        raise ValueError("只允许导入 .csv 流水文件")
+    if not content:
+        raise ValueError("上传文件为空")
+
+    imports_dir = DATA_DIR / "imports"
+    imports_dir.mkdir(parents=True, exist_ok=True)
+    target = imports_dir / safe_name
+    target.write_bytes(content)
+
+    try:
+        header = _read_flow_header(target)
+        if not detect_flow_format(header.columns):
+            raise ValueError(
+                "导入的 CSV 不是可识别的流水格式；请检查列名是否包含 "
+                "交易时间/金额/付款账号/收款账号，或 AML 标准列。"
+                f"实际列名：{list(header.columns)}"
+            )
+        rows = _count_csv_rows(target)
+        if rows <= 0:
+            raise ValueError("导入的 CSV 没有数据行")
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+
+    rel = target.relative_to(PROJECT_ROOT).as_posix()
+    return {
+        "path": rel,
+        "abs_path": str(target),
+        "rows": rows,
+        "label": f"{rel} · {rows:,} 条",
+    }
+
+
+# ----------------------------------------------------------------------------
 # 数据概览
 # ----------------------------------------------------------------------------
 def dataset_profile() -> dict:
@@ -70,9 +187,9 @@ def dataset_profile() -> dict:
 
     date_range = manifest.get("date_range") or {}
     return {
-        "dataset": manifest.get("dataset_name", "synthetic-aml"),
-        "transactions": int(manifest.get("transaction_count") or 42175),
-        "accounts": int(manifest.get("account_count") or 3500),
+        "dataset": manifest.get("dataset_name", "未发现数据集"),
+        "transactions": int(manifest.get("transaction_count") or 0),
+        "accounts": int(manifest.get("account_count") or 0),
         "rings": int(manifest.get("laundering_ring_count") or len(ring_rows)),
         "fraud_transactions": int(manifest.get("fraud_transaction_count") or 0),
         "fraud_rate": manifest.get("fraud_rate_pct", 0),

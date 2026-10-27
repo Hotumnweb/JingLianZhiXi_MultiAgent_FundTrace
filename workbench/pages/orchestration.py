@@ -11,10 +11,18 @@ from llms.remote_llm import report_agent_enabled
 from workbench import coordinator, services, tasks, theme
 from workbench.runner import STAGES
 
-DATASETS = {
-    "data/synthetic_aml/transactions.csv": "合成 AML 数据集 · 42,175 条",
-    "data/sample_flow.csv": "演示数据 · 100 条",
+INSTRUCTION_TEMPLATES = {
+    "自定义任务": "",
+    "全量资金穿透分析": "对这批流水做全量资金穿透分析，输出可疑账户和研判报告",
+    "重点排查环形转账": "重点排查环形转账链，找出闭环资金网络及其关联账户",
+    "重点排查水房归集": "重点排查多层归集账户，分析水房特征与资金去向",
 }
+
+
+def _apply_instruction_template() -> None:
+    """模板只负责快速填入描述，真正执行以“侦查任务描述”为准。"""
+    template = st.session_state.get("instruction_template", "自定义任务")
+    st.session_state["task_instruction"] = INSTRUCTION_TEMPLATES.get(template, "")
 
 
 def _stage_states(done: set[str]) -> dict[str, str]:
@@ -163,41 +171,113 @@ def render() -> None:
     debug = services.debug_inference_status()
     left, right = st.columns([1.05, 1.95])
 
+    st.session_state.setdefault("task_instruction", "")
+    st.session_state.setdefault("instruction_template", "自定义任务")
+    st.session_state.setdefault("loaded_flow_file", "")
+    st.session_state.setdefault("loaded_flow_info", {})
+
+    sources = services.scan_flow_files()
+    source_paths = [item["path"] for item in sources]
+    source_labels = {item["path"]: item["label"] for item in sources}
+
     with left:
         st.markdown("#### 任务下发")
-        preset = st.selectbox(
-            "任务模板",
-            options=[
-                "自定义任务",
-                "全量资金穿透分析",
-                "重点排查环形转账",
-                "重点排查水房归集",
-            ],
-        )
-        dataset = st.selectbox(
-            "流水数据源（Node3 读取）",
-            options=list(DATASETS.keys()),
-            format_func=lambda path: DATASETS.get(path, path),
-        )
-        custom_path = st.text_input(
-            "或输入自定义 CSV 路径",
-            value="",
-            placeholder="例如 data/my_flow.csv",
-        )
-        flow_file = custom_path.strip() or dataset
+        st.caption("① 加载目标数据 → ② 下达侦查指令 → ③ 下发执行")
 
-        default_instruction = {
-            "自定义任务": "分析这批流水，找出可疑账户并生成研判结论",
-            "全量资金穿透分析": "对这批流水做全量资金穿透分析，输出可疑账户和研判报告",
-            "重点排查环形转账": "重点排查环形转账链，找出闭环资金网络及其关联账户",
-            "重点排查水房归集": "重点排查多层归集账户，分析水房特征与资金去向",
-        }.get(preset, "分析这批流水，找出可疑账户并生成研判结论")
-        instruction = st.text_area("侦查任务描述", value=default_instruction, height=90)
+        pending_select = st.session_state.pop("pending_select_flow", None)
+        if pending_select in source_paths:
+            st.session_state["flow_source_select"] = pending_select
+
+        if source_paths:
+            flow_file = st.selectbox(
+                "流水数据源（Node3 动态读取）",
+                options=source_paths,
+                format_func=lambda path: source_labels.get(path, path),
+                key="flow_source_select",
+                persist_state="session",
+            )
+        else:
+            flow_file = ""
+            st.warning("data/ 下暂未发现可解析的流水 CSV，请用下方“从文件夹选择 CSV”导入。")
+
+        st.caption("数据源标签中的行数是平台实时扫描文件得到的，不是写死的数字。")
+
+        with st.form("flow_upload_form", clear_on_submit=True):
+            uploaded = st.file_uploader(
+                "从文件夹选择 CSV（导入到 data/imports/）",
+                type=["csv"],
+                help="浏览器会打开文件选择器；CSV 会复制到 data/imports/，并参与后续动态识别。",
+            )
+            import_clicked = st.form_submit_button("导入并识别")
+        st.caption("支持 AML 标准格式与通用中文流水（交易时间/金额/付款账号/收款账号）；行数按文件实时统计。")
+        if import_clicked:
+            if uploaded is None:
+                st.warning("请先在文件选择器中选择一个 CSV 文件")
+            else:
+                try:
+                    info = services.save_uploaded_flow(uploaded.name, uploaded.getvalue())
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"导入失败：{type(exc).__name__}: {exc}")
+                else:
+                    st.session_state["pending_select_flow"] = info["path"]
+                    st.success(f"已导入：{info['path']}（{info['rows']:,} 条）")
+                    st.rerun()
+
+        load_cols = st.columns([1, 2])
+        if load_cols[0].button("加载目标数据", width="stretch", disabled=not flow_file):
+            try:
+                info = services.inspect_flow_file(flow_file)
+            except Exception as exc:  # noqa: BLE001
+                st.session_state["loaded_flow_file"] = ""
+                st.session_state["loaded_flow_info"] = {}
+                st.error(f"加载失败：{type(exc).__name__}: {exc}")
+            else:
+                st.session_state["loaded_flow_file"] = flow_file
+                st.session_state["loaded_flow_info"] = info
+                st.success(f"目标已加载：{info['rows']:,} 条 · {info['format']}")
+
+        loaded_file = st.session_state.get("loaded_flow_file", "")
+        loaded_info = st.session_state.get("loaded_flow_info") or {}
+        if loaded_info and loaded_file == flow_file:
+            load_cols[1].caption(
+                f"已加载 `{loaded_info['path']}`\n\n"
+                f"{loaded_info['rows']:,} 条 · {loaded_info['format']}"
+            )
+        else:
+            load_cols[1].caption("选择数据源后，先点“加载目标数据”校验格式和条数。")
+
+        template = st.selectbox(
+            "指令模板（可选）",
+            options=list(INSTRUCTION_TEMPLATES.keys()),
+            key="instruction_template",
+            on_change=_apply_instruction_template,
+            persist_state="session",
+        )
+        instruction = st.text_area(
+            "侦查任务描述",
+            key="task_instruction",
+            placeholder="请输入本次侦查目标，例如：分析这批流水，找出可疑账户并生成研判结论",
+            height=100,
+            persist_state="session",
+        )
+        st.caption("模板只负责快速填入上面的“侦查任务描述”；真正执行的是描述框里的内容。")
+
         enable_report = st.toggle(
             "执行 AI 研判报告",
             value=report_agent_enabled(),
-            help="调用 Node2 推理服务；Node2 未接入时使用本机 Ollama 调试",
+            help="调用 Node2 推理服务；关闭后只执行图工具分析",
         )
+
+        ready = bool(flow_file and loaded_file == flow_file and instruction.strip())
+        if not ready:
+            missing = []
+            if not flow_file:
+                missing.append("加载目标数据")
+            elif loaded_file != flow_file:
+                missing.append("加载目标数据")
+            if not instruction.strip():
+                missing.append("下达侦查指令")
+            st.caption("完成以下步骤后执行按钮才可用：" + "、".join(missing))
 
         if debug["ok"]:
             if debug.get("remote"):
@@ -223,9 +303,15 @@ def render() -> None:
         if queue[tasks.STATUS_QUEUED]:
             st.caption(f"当前有 {queue[tasks.STATUS_QUEUED]} 个任务在队列中，建议先执行队列。")
 
-        submit_queue = st.button("提交到任务队列", width="stretch")
-        run_now = st.button("立即执行任务", type="primary", width="stretch")
-        run_graph_only = st.button("仅执行图工具分析（立即运行）", width="stretch")
+        submit_queue = st.button(
+            "下发任务到队列", width="stretch", disabled=not ready
+        )
+        run_now = st.button(
+            "下发并立即执行", type="primary", width="stretch", disabled=not ready
+        )
+        run_graph_only = st.button(
+            "仅执行图工具分析（立即运行）", width="stretch", disabled=not ready
+        )
 
     with right:
         stage_box = st.empty()
@@ -244,7 +330,8 @@ def render() -> None:
             _render_task_result(last_task)
         else:
             st.markdown(
-                '<div class="jz-note">提交到队列后可到“任务队列”统一执行；也可以立即执行当前任务。</div>',
+                '<div class="jz-note">先加载目标数据并填写侦查任务描述；'
+                '下发后到“任务队列”执行，或直接下发并立即执行。</div>',
                 unsafe_allow_html=True,
             )
         return
@@ -252,11 +339,15 @@ def render() -> None:
     if run_graph_only:
         enable_report = False
 
+    if not ready:
+        st.error("请先加载目标数据并填写侦查任务描述，再下发任务。")
+        return
+
     task = tasks.create_task(
         instruction=instruction,
         flow_file=flow_file,
         enable_report=enable_report,
-        preset=preset,
+        preset=template,
     )
 
     if submit_queue:

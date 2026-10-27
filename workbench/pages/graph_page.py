@@ -81,15 +81,19 @@ def render() -> None:
 
     theme.section("可疑账户证据强度排行", "按归集上游数 / 环形参与 / 快进快出命中综合评分")
     st.dataframe(risk[:20], width="stretch", hide_index=True)
+    st.caption(
+        "评分口径：归集上游数 ×12 + 环形参与 ×32 + 快进快出命中次数 ×9；"
+        "仅用于排序展示，不参与规则判定。明细来自当前证据 JSON。"
+    )
 
     with st.expander("Neo4j 复核查询", expanded=False):
         st.markdown("**① 图谱规模：账户数**")
         st.code("MATCH (n:Account) RETURN count(n) AS accounts;", language="cypher")
         st.markdown("**② 图谱规模：转账边数**")
         st.code("MATCH ()-[r:TRANSFER]->() RETURN count(r) AS transfers;", language="cypher")
-        st.markdown("**③ 某个可疑账户的资金往来（示例）**")
+        st.markdown("**③ 某个可疑账户的资金往来（示例，入账 + 出账）**")
         st.code(
-            "MATCH p=(a:Account {id: 'ACC_01978'})-[r:TRANSFER]->(b:Account)\n"
+            "MATCH p=(a:Account {id: 'ACC_01978'})-[r:TRANSFER]-(b:Account)\n"
             "RETURN p LIMIT 50;",
             language="cypher",
         )

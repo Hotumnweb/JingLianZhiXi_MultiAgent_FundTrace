@@ -260,6 +260,101 @@ def inject_theme() -> None:
     import streamlit as st
 
     st.markdown(_CSS, unsafe_allow_html=True)
+    # 局域网 http://IP:8501 不是安全上下文，浏览器可能禁用剪贴板 API；
+    # 用隐藏 textarea + execCommand 作为兼容兜底，localhost 仍走 Streamlit 原生复制。
+    st.html(_COPY_FALLBACK_JS, unsafe_allow_javascript=True)
+
+
+_COPY_FALLBACK_JS = """
+<script>
+(function () {
+  if (window.__jzClipboardFallbackInstalled) return;
+  window.__jzClipboardFallbackInstalled = true;
+
+  function legacyCopy(text) {
+    try {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '-9999px';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      area.setSelectionRange(0, area.value.length);
+      var ok = document.execCommand('copy');
+      document.body.removeChild(area);
+      return ok;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  document.addEventListener('click', function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var button = target.closest(
+      '[data-testid="stCodeCopyButton"], button[aria-label="Copy to clipboard"], ' +
+      'button[aria-label*="Copy"], button[title*="Copy"], ' +
+      'button[aria-label*="复制"], button[title*="复制"]'
+    );
+    if (!button) return;
+    var block = button.closest('[data-testid="stCode"]')
+      || button.closest('[data-testid="stCodeBlock"]');
+    var code = block ? block.querySelector('pre code, pre') : null;
+    if (!code) {
+      var parent = button.parentElement;
+      while (parent && !code) {
+        code = parent.querySelector('pre code, pre');
+        parent = parent.parentElement;
+      }
+    }
+    if (!code) return;
+    var text = code.innerText || code.textContent || '';
+    if (!text) return;
+    // 无论 localhost 还是局域网 IP，都先走兼容复制；成功后再阻止原生按钮重复处理。
+    var copied = legacyCopy(text);
+    if (copied) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  // 鼠标位于文本域/表格/代码块等内部滚动区域时，滚到边界后把滚轮事件交给页面，
+  // 避免“键盘能滚、鼠标滚不动”的假死感。
+  document.addEventListener('wheel', function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var main = document.querySelector('[data-testid="stMain"]');
+    if (!main) return;
+
+    if (target.tagName === 'TEXTAREA' && target.scrollHeight <= target.clientHeight) {
+      main.scrollTop += event.deltaY;
+      event.preventDefault();
+      return;
+    }
+
+    var element = target;
+    while (element && element !== main && element !== document.body) {
+      var style = window.getComputedStyle(element);
+      var scrollable = /(auto|scroll)/.test(style.overflowY)
+        && element.scrollHeight > element.clientHeight + 1;
+      if (scrollable) {
+        var atTop = element.scrollTop <= 0;
+        var atBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 1;
+        if ((event.deltaY < 0 && !atTop) || (event.deltaY > 0 && !atBottom)) {
+          return;
+        }
+        main.scrollTop += event.deltaY;
+        event.preventDefault();
+        return;
+      }
+      element = element.parentElement;
+    }
+  }, { passive: false });
+})();
+</script>
+"""
 
 
 def esc(value) -> str:
@@ -364,14 +459,14 @@ def pipeline_stages(stages: list[tuple], states: dict[str, str], current: str | 
     cards = []
     for index, (key, name, desc) in enumerate(stages, start=1):
         state = "done" if states.get(key) == "done" else ("active" if key == current else "pending")
+        # 必须输出紧凑 HTML：st.markdown 遇到 4 空格缩进会当成代码块，
+        # 导致阶段卡显示成带复制按钮的原始 HTML。
         cards.append(
-            f"""
-            <div class="jz-stage {_stage_class(state)}">
-              <div class="jz-stage-idx">STAGE {index:02d}</div>
-              <div class="jz-stage-name">{esc(name)}</div>
-              <div class="jz-stage-desc">{esc(desc)}</div>
-            </div>
-            """
+            f'<div class="jz-stage {_stage_class(state)}">'
+            f'<div class="jz-stage-idx">STAGE {index:02d}</div>'
+            f'<div class="jz-stage-name">{esc(name)}</div>'
+            f'<div class="jz-stage-desc">{esc(desc)}</div>'
+            f"</div>"
         )
     return f'<div class="jz-stages">{"".join(cards)}</div>'
 
