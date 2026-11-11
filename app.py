@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""警链智析-多智能体驱动的涉诈资金穿透研判系统（第一台电脑：Coordinator Node）。
+"""警链智析-元智能体驱动的涉诈资金穿透研判系统（第一台电脑：Coordinator Node）。
 
 职责边界（与三机架构一致）：
 - 本机只做任务下发、调度决策、状态管理、日志与结果汇总；
@@ -29,9 +29,9 @@ from workbench.pages import (
 )
 
 # 目录名不能叫 platform（与 Python 标准库冲突），所以平台包命名为 workbench
-APP_NAME = "警链智析-多智能体驱动的涉诈资金穿透研判系统"
+APP_NAME = "警链智析-元智能体驱动的涉诈资金穿透研判系统"
 APP_SHORT = "警链智析"
-APP_SUB = "多智能体驱动的涉诈资金穿透研判系统"
+APP_SUB = "元智能体驱动的涉诈资金穿透研判系统"
 
 st.set_page_config(
     page_title=APP_NAME,
