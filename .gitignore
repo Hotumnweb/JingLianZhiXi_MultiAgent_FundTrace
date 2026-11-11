@@ -22,3 +22,6 @@ runtime/
 data/imports/
 .ipynb_checkpoints/
 data/synthetic_aml/Untitled.ipynb
+
+# 文档由桌面单独管理
+*.docx
