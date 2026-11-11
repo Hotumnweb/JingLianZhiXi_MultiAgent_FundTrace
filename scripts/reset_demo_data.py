@@ -139,6 +139,8 @@ def main() -> int:
     print("清理演示缓存……")
     if args.graph or args.all:
         graph_ok = clear_graph()
+    if args.graph and not args.all:
+        print("  [提示] --graph 只清图谱；要连上传流水一起清，请用 --all。")
     removed_reports = clean_reports()
     print(f"  reports/：已清理 {removed_reports} 项")
     clean_runtime()
