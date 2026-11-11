@@ -7,6 +7,10 @@ from workbench import services, theme
 
 
 def render() -> None:
+    notice = st.session_state.pop("_reset_notice", "")
+    if notice:
+        st.success(notice)
+
     theme.section("节点与工具", "三节点状态 · 运行环境 · 接口清单")
 
     top_cols = st.columns([1, 1, 4])
@@ -142,3 +146,31 @@ def render() -> None:
                 f"{theme.pill('✓', 'ok')} **{text}** — {detail}",
                 unsafe_allow_html=True,
             )
+
+    with st.expander("演示数据清理", expanded=False):
+        st.caption(
+            "清空 Neo4j 图谱、reports/、runtime/tasks/ 和 data/imports/；"
+            "保留 data/synthetic_aml 与 data/sample_flow.csv 这类内置测试数据。"
+        )
+        confirmed = st.checkbox(
+            "我确认清空当前图谱、任务记录、报告和已上传流水",
+            key="confirm_reset_demo",
+        )
+        if st.button(
+            "清空全部演示数据",
+            type="secondary",
+            disabled=not confirmed,
+            width="stretch",
+        ):
+            result = services.reset_demo_data(clear_imports=True)
+            if result.get("error"):
+                st.warning(f"清理未完全成功：{result['error']}")
+            else:
+                before = result.get("graph_before") or {}
+                after = result.get("graph_after") or {}
+                st.session_state["_reset_notice"] = (
+                    f"已清空演示数据：图谱 {before.get('accounts', 0)}/"
+                    f"{before.get('transfers', 0)} → {after.get('accounts', 0)}/"
+                    f"{after.get('transfers', 0)}；报告、任务和上传流水已删除。"
+                )
+                st.rerun()

@@ -21,7 +21,7 @@ D:\softwaredata\neo4j-community\start-neo4j.bat
 # 2) 回到项目目录，清空报告/任务/缓存/图谱
 conda activate fraud_agent
 cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
-python scripts\reset_demo_data.py --graph
+python scripts\reset_demo_data.py --all
 ```
 
 脚本会清理：`reports/` 报告与证据、`runtime/tasks/` 任务记录、`__pycache__`、
@@ -182,7 +182,7 @@ python scripts\preflight_check.py     # 演示前自检
 # 1) 关闭平台：streamlit 终端 Ctrl+C
 # 2) 关闭 Neo4j：start-neo4j.bat 窗口 Ctrl+C
 # 3) 清空数据与缓存（Neo4j 启动状态下才能清图谱）
-python scripts\reset_demo_data.py --graph
+python scripts\reset_demo_data.py --all
 # 4) 再关闭 Neo4j
 ```
 

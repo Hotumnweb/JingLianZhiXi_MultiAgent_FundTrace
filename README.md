@@ -68,8 +68,8 @@ streamlit run app.py
 - 第二台 GPU 节点：**已接入**，IP `192.168.0.200`，模型 `qwen3.5-9b-tools:q4km`，
   必须 `LLM_THINK=false`；详细说明见 [docs/NETWORK_NODE2.md](docs/NETWORK_NODE2.md)；
 - 第三台工具与图数据节点：开发调试阶段部署在本机（Neo4j + pandas），目标地址 `192.168.50.3`；
-- 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --graph`
-  恢复干净环境，由队员现场重新建图、生成报告；
+- 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --all`
+  恢复干净环境（图谱、报告、任务、上传流水全部清空），由队员现场重新建图、生成报告；
 
 ## 4. 目录结构
 
@@ -142,7 +142,7 @@ python main.py --no-report                    # 只跑图工具分析
 python scripts/check_llm.py                   # 检查推理服务（本机/第二台）
 python scripts/preflight_check.py             # 演示前自检
 python scripts/evaluate_on_synthetic_aml.py   # 规则评测
-python scripts/reset_demo_data.py --graph     # 清理演示缓存与图谱
+python scripts/reset_demo_data.py --all       # 清空图谱/报告/任务/上传流水
 ```
 
 ## 8. Node2 接入（当前已接入）
@@ -202,4 +202,4 @@ python scripts/check_llm.py
 | AI 报告很慢 | 第二台 GPU 当前约 30 秒；若回退到本机 CPU 调试约 2~4 分钟 |
 | 报告 content 为空 | Qwen3.5 必须 `LLM_THINK=false`（`connect_node2.py` 会自动写入） |
 | 报告状态 fallback | AI 不可达，自动降级为规则模板报告 |
-| 需要重置演示环境 | `python scripts/reset_demo_data.py --graph` |
+| 需要重置演示环境 | `python scripts/reset_demo_data.py --all`（清理后刷新页面） |

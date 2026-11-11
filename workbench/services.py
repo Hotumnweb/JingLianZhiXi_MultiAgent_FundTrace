@@ -14,6 +14,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import socket
 import time
 from datetime import datetime
@@ -22,9 +23,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 AML_DIR = DATA_DIR / "synthetic_aml"
+IMPORTS_DIR = DATA_DIR / "imports"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 AUDIT_DIR = REPORTS_DIR / "audit"
 AUDIT_LOG = AUDIT_DIR / "audit.jsonl"
+RUNTIME_DIR = PROJECT_ROOT / "runtime"
 
 DEFAULT_NODE_TARGETS = {
     "node2": "192.168.50.2",
@@ -46,6 +49,54 @@ def _read_json(path: Path) -> dict:
 def ensure_dirs() -> None:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def reset_demo_data(clear_imports: bool = True) -> dict:
+    """清空图谱、报告、任务队列；可选清空上传流水。
+
+    只清运行时数据，不删除 data/synthetic_aml 和 data/sample_flow.csv 这类内置测试数据。
+    返回实际清理结果，供页面/命令输出使用。
+    """
+    result = {
+        "graph_before": {},
+        "graph_after": {},
+        "graph_cleared": False,
+        "reports_cleared": False,
+        "runtime_cleared": False,
+        "imports_cleared": False,
+        "error": "",
+    }
+    try:
+        from tools.graph_query import clear_graph, close_driver, graph_summary
+
+        result["graph_before"] = graph_summary()
+        clear_graph()
+        result["graph_after"] = graph_summary()
+        close_driver()
+        result["graph_cleared"] = not any(
+            int(result["graph_after"].get(key) or 0) for key in ("accounts", "transfers")
+        )
+    except Exception as exc:  # noqa: BLE001
+        result["error"] = f"{type(exc).__name__}: {exc}"
+
+    for key, path in (
+        ("reports_cleared", REPORTS_DIR),
+        ("runtime_cleared", RUNTIME_DIR),
+        ("imports_cleared", IMPORTS_DIR),
+    ):
+        if key == "imports_cleared" and not clear_imports:
+            continue
+        try:
+            if path.exists():
+                shutil.rmtree(path)
+            result[key] = True
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = (result["error"] + "；" if result["error"] else "") + f"{path.name}: {exc}"
+
+    ensure_dirs()
+    if clear_imports:
+        IMPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    return result
 
 
 # ----------------------------------------------------------------------------

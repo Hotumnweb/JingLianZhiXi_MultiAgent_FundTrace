@@ -106,7 +106,7 @@ streamlit run app.py
 
 - 节点状态：Node1 在线、Node2 在线（GPU）、Node3 在线；
 - 需要演示数据时，在“元智能体调度”下发任务重建；
-- 需要清空演示痕迹：`python scripts/reset_demo_data.py --graph`；
+- 需要清空演示痕迹：`python scripts/reset_demo_data.py --all`（清理后刷新页面）；
 - 若 Node2 临时不可用：本机 Ollama 调试模式仍可出报告，或勾选“仅执行图工具分析”。
 
 ## 五、当前 Node2 实测
