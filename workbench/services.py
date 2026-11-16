@@ -563,17 +563,32 @@ def node_status() -> list[dict]:
                 }
             )
         else:
+            # Node2 离线时的本地 Ollama 回退：也要显示真实在线状态，不能显示成“等待接入”
+            started = time.perf_counter()
+            info = check_connection(timeout=4)
+            latency = (time.perf_counter() - started) * 1000
+            available = bool(info.get("available"))
+            ok = bool(info.get("ok"))
+            if ok and available:
+                status = "online"
+                detail = f"本地 Ollama · 模型：{config.model}"
+            elif ok:
+                status = "warn"
+                detail = "本地模型未找到 · 请检查 Ollama models"
+            else:
+                status = "offline"
+                detail = "本地 Ollama 未连接"
             nodes.append(
                 {
                     "id": "node2",
                     "index": "02",
-                    "name": "GPU 算力中心",
-                    "role": "GPU 推理与算力",
+                    "name": "GPU 算力中心（本地回退）",
+                    "role": "本地推理与算力",
                     "role_en": "Inference",
-                    "endpoint": f"{targets['node2']}:11434（规划）",
-                    "status": "placeholder",
-                    "latency_ms": 0,
-                    "detail": "推理服务未连接 · 等待 Node2",
+                    "endpoint": f"{config.base_url}（本机）",
+                    "status": status,
+                    "latency_ms": round(latency, 1),
+                    "detail": detail,
                 }
             )
     except Exception as exc:  # noqa: BLE001

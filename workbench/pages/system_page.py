@@ -18,10 +18,11 @@ def render() -> None:
         if st.button("刷新状态", width="stretch"):
             st.rerun()
     with top_cols[1]:
-        mode = "三机内网协同" if services.inference_is_remote() else "开发调试模式"
+        mode = "三机内网协同" if services.inference_is_remote() else "本地 Ollama 回退"
         st.markdown(theme.pill(mode, "info"), unsafe_allow_html=True)
 
     nodes = services.node_status()
+    node2 = next((node for node in nodes if node.get("id") == "node2"), {})
     node_cols = st.columns(3)
     for col, node in zip(node_cols, nodes):
         col.markdown(theme.node_card(node), unsafe_allow_html=True)
@@ -38,9 +39,11 @@ def render() -> None:
             },
             {
                 "节点": "Node2",
-                "角色": "GPU 推理与算力（Inference）",
-                "目标地址": targets["node2"],
-                "当前状态": "已接入" if services.inference_is_remote() else "待接入",
+                "角色": "推理与算力（Inference）",
+                "目标地址": targets["node2"] if services.inference_is_remote() else "127.0.0.1:11434（本地回退）",
+                "当前状态": "已接入" if services.inference_is_remote() else (
+                    "本地在线（回退）" if node2.get("status") == "online" else "本地离线"
+                ),
             },
             {
                 "节点": "Node3",
