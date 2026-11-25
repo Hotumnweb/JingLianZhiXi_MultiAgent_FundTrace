@@ -69,8 +69,11 @@ streamlit run app.py
   必须 `LLM_THINK=false`；详细说明见 [docs/NETWORK_NODE2.md](docs/NETWORK_NODE2.md)；
 - 第三台工具与图数据节点：开发调试阶段部署在本机（Neo4j + pandas）；Neo4j 连接地址
   统一用 **IP + 端口** 配置（`.env` 的 `NEO4J_HOST` / `NEO4J_PORT`，本机回环即
-  `127.0.0.1` + `7687`），部署到 Node3 时只改这两行（如 `10.20.30.30` + `7687`）；
+  `127.0.0.1` + `7687`），部署到 Node3 时只改这两行（当前规划 `192.168.0.201` + `7687`）；
   连接自检：`python scripts/check_neo4j.py`；
+- Neo4j 已监听 `0.0.0.0`，并在第一台放行 TCP **7474 / 7687**：第二台可直接用浏览器访问
+  <http://192.168.0.199:7474>（Bolt `bolt://192.168.0.199:7687`）；换机器时按
+  [docs/runbook_manual_operation.md](docs/runbook_manual_operation.md) 的 2.1.1 节配置；
 - 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --all`
   恢复干净环境（图谱、报告、任务、上传流水全部清空），由队员现场重新建图、生成报告；
 
@@ -103,6 +106,7 @@ JingLianZhiXi_MultiAgent_FundTrace/
 │   ├── check_neo4j.py           # Neo4j 连接自检（IP + 端口）
 │   ├── preflight_check.py
 │   ├── generate_sample_data.py
+│   ├── open_node1_ports.ps1     # 管理员放行 8501/7474/7687（第二台访问平台与 Neo4j）
 │   └── second_node_setup.ps1
 ├── docs/
 │   ├── platform_guide.md        # 平台功能与现场演示脚本
@@ -205,6 +209,7 @@ python scripts/check_llm.py
 | 平台页面为空 | 演示数据已清理；在“元智能体调度”下发任务即可重建 |
 | Node2 显示离线 | 检查第二台 Ollama 是否监听 0.0.0.0:11434、防火墙/网络是否变化；跑 `python scripts/connect_node2.py` |
 | Node3 显示离线 | Neo4j 未启动，或 `.env` 的 `NEO4J_HOST` / `NEO4J_PORT` 与实际监听不一致；启动 Neo4j 后跑 `python scripts/check_neo4j.py` 验证 |
+| 第二台打不开 Neo4j Browser | Neo4j 需 `server.default_listen_address=0.0.0.0` 并重启；第一台管理员运行 `scripts/open_node1_ports.ps1` 放行 7474/7687 |
 | AI 报告很慢 | 第二台 GPU 当前约 30 秒；若回退到本机 CPU 调试约 2~4 分钟 |
 | 报告 content 为空 | Qwen3.5 必须 `LLM_THINK=false`（`connect_node2.py` 会自动写入） |
 | 报告状态 fallback | AI 不可达，自动降级为规则模板报告 |

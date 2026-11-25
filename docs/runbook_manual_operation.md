@@ -84,7 +84,7 @@ NEO4J_HOST=127.0.0.1
 NEO4J_PORT=7687
 ```
 
-- 本机回环就是 `127.0.0.1` + `7687`；部署到第三台工具节点时改成内网 IP（如 `10.20.30.30`）；
+- 本机回环就是 `127.0.0.1` + `7687`；部署到第三台工具节点时改成内网 IP（当前规划 `192.168.0.201`）；
 - 旧写法 `NEO4J_URI=bolt://localhost:7687` 仍兼容，但优先级低于 IP + 端口；
 - 改完 `.env` 后重启平台进程，然后验证连接：
 
@@ -93,6 +93,27 @@ python scripts\check_neo4j.py
 ```
 
 预期看到 `[OK] Bolt 可达` 与当前图谱规模。
+
+#### 2.1.1 允许第二台电脑访问 Neo4j（局域网）
+
+Neo4j 默认只监听 `127.0.0.1`，第二台浏览器打不开 `http://192.168.0.199:7474`。
+第一台已按下面改好（换机器时照做）：
+
+1. 编辑 `D:\softwaredata\neo4j-community\conf\neo4j.conf`（改前先备份为 `neo4j.conf.bak-时间戳`）：
+   `server.default_listen_address=0.0.0.0`；
+2. 重启 Neo4j（`start-neo4j.bat` 或后台脚本），日志出现
+   `Bolt enabled on 0.0.0.0:7687`、`HTTP enabled on 0.0.0.0:7474` 即生效；
+3. 第一台用**管理员 PowerShell** 放行端口（一次即可，规则名 `JZ_Node1_*`）：
+
+```powershell
+cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
+powershell -ExecutionPolicy Bypass -File scripts\open_node1_ports.ps1
+# 只允许 Node2 访问：加参数 -RemoteAddress 192.168.0.200
+```
+
+4. 第二台访问：浏览器打开 <http://192.168.0.199:7474>，账号 `neo4j` / 密码 `fraud2026`，
+   Neo4j Browser 的 Bolt 地址填 `bolt://192.168.0.199:7687`；
+5. 第一台侧验证：`python scripts\check_neo4j.py --host 192.168.0.199`。
 
 ### 2.2 确认第二台 AI（Node2）在线
 
@@ -133,7 +154,8 @@ streamlit run app.py
 
 浏览器访问：<http://localhost:8501>（第二台访问用 `http://192.168.0.199:8501`）。
 
-如果第二台打不开平台，在第一台用**管理员 PowerShell** 放行端口：
+如果第二台打不开平台或 Neo4j，在第一台用**管理员 PowerShell** 放行端口
+（脚本一次放行 8501 / 7474 / 7687，来源默认 LocalSubnet）：
 
 ```powershell
 cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
@@ -217,6 +239,7 @@ python scripts\reset_demo_data.py --all
 | Neo4j 连不上 / Node3 离线 | 检查 `.env` 的 `NEO4J_HOST` / `NEO4J_PORT` 是否等于实际监听地址；跑 `python scripts\check_neo4j.py` 定位 |
 | 平台 8501 被占用 | `streamlit run app.py --server.port 8502` |
 | 第二台访问不了平台 | 第一台管理员运行 `scripts\open_node1_ports.ps1` |
+| 第二台打不开 Neo4j Browser（7474） | 检查 `neo4j.conf` 是否 `0.0.0.0` 并重启；第一台管理员运行 `scripts\open_node1_ports.ps1` 放行 7474/7687；WLAN 网络为“公用”时必须放行 |
 | 想验证外网是否断开 | 平台“节点与工具”点“外网隔离检测” |
 
 ---
@@ -233,6 +256,8 @@ python scripts\reset_demo_data.py --all
 | 第二台接入脚本 | `scripts/connect_node2.py` |
 | Neo4j 连接配置 | `.env` 的 `NEO4J_HOST` / `NEO4J_PORT`（IP + 端口） |
 | Neo4j 连接自检 | `scripts/check_neo4j.py` |
+| 第一台端口放行（8501/7474/7687） | `scripts/open_node1_ports.ps1`（管理员运行） |
+| Neo4j 监听配置 | `D:\softwaredata\neo4j-community\conf\neo4j.conf` 的 `server.default_listen_address` |
 | 第二台说明 | `docs/NETWORK_NODE2.md` |
 | 平台使用/演示稿 | `docs/platform_guide.md` |
 | 配置模板 | `.env.example`（实际配置在 `.env`，不提交 Git） |
