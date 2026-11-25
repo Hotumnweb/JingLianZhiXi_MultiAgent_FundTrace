@@ -160,18 +160,24 @@ def inspect_flow_file(relative_path: str) -> dict:
 
 
 def scan_flow_files() -> list[dict]:
-    """动态扫描 data/ 下所有可解析的 CSV 流水文件。"""
+    """动态扫描 data/ 下可解析的 CSV 流水文件。
+
+    注意：`data/new/` 是原始大数据集（单文件几百 MB），不参与前端扫描；
+    平台只消费 `scripts/prepare_datasets.py` 生成到 `data/prepared/` 的抽样文件。
+    """
     if not DATA_DIR.exists():
         return []
+    raw_dataset_dir = DATA_DIR / "new"
     items: list[dict] = []
     for path in sorted(DATA_DIR.rglob("*.csv")):
         if not path.is_file() or path.name.startswith("."):
             continue
+        if raw_dataset_dir in path.parents:
+            continue
         try:
-            info = inspect_flow_file(str(path))
+            items.append(inspect_flow_file(str(path)))
         except Exception:  # noqa: BLE001 - 扫描阶段跳过非流水 CSV
             continue
-        items.append(info)
     # 上传目录排在最后，其余按路径排序，便于操作员先看到内置数据
     items.sort(key=lambda item: (item["path"].startswith("data/imports/"), item["path"]))
     return items
@@ -434,6 +440,309 @@ def build_graph_payload(
         "categories": categories,
     }
 
+
+# ----------------------------------------------------------------------------
+# 数据资产：data/new 大数据集目录、抽样生成、样本评测
+# ----------------------------------------------------------------------------
+def dataset_catalog() -> list[dict]:
+    """数据资产目录（含抽样准备状态）。"""
+    from tools.dataset_catalog import catalog_rows
+
+    return catalog_rows()
+
+
+def dataset_summary() -> dict:
+    from tools.dataset_catalog import summary
+
+    return summary()
+
+
+def dataset_preview(relative_path: str, rows: int = 8) -> dict:
+    """预览一个 CSV 的前 N 行（不加载全文件）。"""
+    import pandas as pd
+
+    path = Path(str(relative_path))
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    if not path.exists():
+        raise FileNotFoundError(f"文件不存在：{relative_path}")
+    try:
+        frame = pd.read_csv(path, nrows=max(1, rows), encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        frame = pd.read_csv(path, nrows=max(1, rows), encoding="gbk")
+    return {
+        "path": str(path),
+        "columns": [str(col) for col in frame.columns],
+        "records": frame.to_dict(orient="records"),
+        "preview_rows": len(frame),
+    }
+
+
+def _prepared_group_items() -> list[dict]:
+    from tools.dataset_catalog import flow_datasets, prepared_source_row
+
+    items = []
+    for dataset in flow_datasets():
+        row = prepared_source_row(dataset["key"])
+        if row:
+            items.append(row)
+    return items
+
+
+def prepared_status(key: str) -> dict:
+    """抽样准备状态（行数、账户数、标签数、生成时间）。"""
+    from tools.dataset_catalog import prepared_status as _status
+
+    return _status(key)
+
+
+def prepared_label_counts(key: str) -> dict:
+    """抽样标签分布（用于页面图表）。"""
+    import pandas as pd
+
+    from tools.dataset_catalog import prepared_labels_path
+
+    path = prepared_labels_path(key)
+    if not path.exists():
+        return {}
+    try:
+        frame = pd.read_csv(path)
+    except Exception:  # noqa: BLE001
+        return {}
+    label_col = next((col for col in frame.columns if col != "account"), None)
+    if label_col is None:
+        return {}
+    positives = int(frame[label_col].fillna(0).astype(int).sum())
+    return {label_col: {"positive": positives, "total": len(frame)}}
+
+
+def prepared_overview(key: str) -> dict:
+    """图结构数据（Elliptic）的抽样概览。"""
+    from tools.dataset_catalog import PREPARED_DIR
+
+    path = PREPARED_DIR / "elliptic_overview.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def flow_source_groups() -> list[dict]:
+    """调度页数据源分组：内置演示 / 大数据抽样 / 已上传。"""
+    groups: list[dict] = []
+
+    demo_items: list[dict] = []
+    aml_path = "data/synthetic_aml/transactions.csv"
+    if (PROJECT_ROOT / aml_path).exists():
+        demo_items.append(
+            {
+                "path": aml_path,
+                "label": "合成 AML 数据集 · 42,175 笔（内置）",
+                "group": "内置演示",
+                "rows": 42175,
+                "kind": "demo",
+                "dataset_key": "demo-aml",
+            }
+        )
+    sample_path = "data/sample_flow.csv"
+    if (PROJECT_ROOT / sample_path).exists():
+        demo_items.append(
+            {
+                "path": sample_path,
+                "label": "中文演示流水 · 100 笔（内置）",
+                "group": "内置演示",
+                "rows": 100,
+                "kind": "demo",
+                "dataset_key": "demo-sample",
+            }
+        )
+    if demo_items:
+        groups.append({"group": "内置演示", "items": demo_items})
+
+    prepared_items = _prepared_group_items()
+    if prepared_items:
+        groups.append({"group": "大数据抽样", "items": prepared_items})
+
+    import_items: list[dict] = []
+    imports_dir = DATA_DIR / "imports"
+    if imports_dir.exists():
+        for path in sorted(imports_dir.glob("*.csv")):
+            try:
+                info = inspect_flow_file(str(path))
+            except Exception:  # noqa: BLE001
+                continue
+            import_items.append(
+                {
+                    "path": info["path"],
+                    "label": info["label"],
+                    "group": "已上传",
+                    "rows": info["rows"],
+                    "kind": "upload",
+                    "dataset_key": "",
+                }
+            )
+    if import_items:
+        groups.append({"group": "已上传", "items": import_items})
+    return groups
+
+
+def flatten_flow_sources() -> list[dict]:
+    """把分组数据源拍平，便于下拉框与查找。"""
+    items: list[dict] = []
+    for group in flow_source_groups():
+        items.extend(group["items"])
+    return items
+
+
+def prepare_dataset_asset(key: str, rows: int | None = None) -> dict:
+    """生成某个大数据集的确定性抽样（页面按钮/CLI 共用）。"""
+    import sys
+
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+    from scripts.prepare_datasets import prepare_dataset
+
+    return prepare_dataset(key, rows=rows)
+
+
+def latest_completed_task() -> dict | None:
+    """最近一次已完成任务（用于判断当前图谱来自哪个数据源）。"""
+    from workbench import tasks as task_store
+
+    for task in task_store.list_tasks(limit=100):
+        if task.get("status") == task_store.STATUS_COMPLETED:
+            return task
+    return None
+
+
+def _pattern_coverage(dataset_key: str, flagged: set[str]) -> dict:
+    """IBM AML：把命中账户与 Patterns.txt 的 8 类洗钱模式做覆盖统计。"""
+    from tools.dataset_catalog import get_dataset
+    from tools.dataset_catalog import PROJECT_ROOT as ROOT
+
+    dataset = get_dataset(dataset_key) or {}
+    pattern_path = next(
+        (ROOT / rel for rel in dataset.get("raw_paths", []) if str(rel).endswith(".txt")),
+        None,
+    )
+    if pattern_path is None or not pattern_path.exists():
+        return {"available": False}
+
+    header = re.compile(r"BEGIN LAUNDERING ATTEMPT\s*-\s*(.+?)(?::|$)")
+    attempts: list[tuple[str, set[str]]] = []
+    current: str | None = None
+    accounts: set[str] = set()
+
+    def normalize(bank, account) -> str:
+        try:
+            bank_text = str(int(str(bank).strip()))
+        except (TypeError, ValueError):
+            bank_text = str(bank).strip()
+        return f"{bank_text}:{str(account).strip()}"
+
+    for line in pattern_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        match = header.search(text)
+        if match:
+            if current is not None:
+                attempts.append((current, accounts))
+            current = match.group(1).strip().upper()
+            accounts = set()
+            continue
+        if current and re.match(r"^\d{4}/\d{2}/\d{2}", text):
+            parts = text.split(",")
+            if len(parts) >= 5:
+                accounts.add(normalize(parts[1], parts[2]))
+                accounts.add(normalize(parts[3], parts[4]))
+    if current is not None:
+        attempts.append((current, accounts))
+
+    by_type: dict[str, dict] = {}
+    for name, members in attempts:
+        entry = by_type.setdefault(name, {"attempts": 0, "accounts": set()})
+        entry["attempts"] += 1
+        entry["accounts"] |= members
+    for entry in by_type.values():
+        entry["flagged"] = len(flagged & entry["accounts"])
+
+    total = len(by_type)
+    covered = sum(1 for entry in by_type.values() if entry["flagged"] > 0)
+    return {
+        "available": True,
+        "total_patterns": total,
+        "covered_patterns": covered,
+        "by_type": {
+            name: {
+                "attempts": entry["attempts"],
+                "accounts": len(entry["accounts"]),
+                "flagged": entry["flagged"],
+            }
+            for name, entry in sorted(by_type.items())
+        },
+    }
+
+
+def compute_prepared_metrics(dataset_key: str) -> dict:
+    """在“用抽样数据建好的当前图谱”上复算规则指标（标签只用于事后评测）。"""
+    import pandas as pd
+
+    from tools.dataset_catalog import get_dataset, prepared_labels_path
+    from tools.graph_query import (
+        find_circular_loops,
+        find_fan_in,
+        find_fast_in_fast_out,
+        graph_summary,
+    )
+
+    labels_path = prepared_labels_path(dataset_key)
+    if not labels_path.exists():
+        raise FileNotFoundError(f"没有找到标签文件：{labels_path}，请先生成抽样")
+    labels = pd.read_csv(labels_path, dtype={"account": str})
+    label_col = next((col for col in labels.columns if col != "account"), "is_laundering")
+    truth = set(labels.loc[labels[label_col].fillna(0).astype(int) == 1, "account"].astype(str))
+    if not truth:
+        raise ValueError("标签文件里没有正样本")
+
+    fast_io = find_fast_in_fast_out()
+    gather = find_fan_in()
+    cycles = find_circular_loops()
+    fast_accounts = {item["account"] for item in fast_io}
+    gather_accounts = {item["account"] for item in gather}
+    cycle_accounts = {account for item in cycles for account in item["accounts"]}
+
+    def metrics(flagged: set[str]) -> dict:
+        tp = flagged & truth
+        precision = len(tp) / len(flagged) if flagged else 0.0
+        recall = len(tp) / len(truth) if truth else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        return {
+            "flagged": len(flagged),
+            "tp": len(tp),
+            "precision": round(precision, 3),
+            "recall": round(recall, 3),
+            "f1": round(f1, 3),
+        }
+
+    strong = gather_accounts | cycle_accounts
+    all_flagged = strong | fast_accounts
+    dataset = get_dataset(dataset_key) or {}
+    return {
+        "dataset_key": dataset_key,
+        "dataset_name": dataset.get("name", dataset_key),
+        "label_kind": "洗钱账户" if label_col == "is_laundering" else "诈骗账户",
+        "truth": len(truth),
+        "fast_io": metrics(fast_accounts),
+        "gather": metrics(gather_accounts),
+        "cycles": metrics(cycle_accounts),
+        "strong": metrics(strong),
+        "all": metrics(all_flagged),
+        "pattern_coverage": _pattern_coverage(dataset_key, all_flagged),
+        "graph": graph_summary(),
+    }
 
 
 # ----------------------------------------------------------------------------

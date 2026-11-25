@@ -171,6 +171,24 @@ powershell -ExecutionPolicy Bypass -File scripts\open_node1_ports.ps1
 - Node3 工具与图数据：在线，地址显示为 `.env` 配置的 `IP:端口`（如 `127.0.0.1:7687 · 本机`），
   若图谱为空显示 `0 账户 / 0 转账`。
 
+### 2.5 准备数据资产（赛前执行一次）
+
+`data/new/` 的公开大数据集约 2.5 GB，不现场扫描；平台使用 `data/prepared/` 的抽样：
+
+```powershell
+# 生成全部抽样（约 45 秒，固定随机种子可复现）
+python scripts/prepare_datasets.py --all
+
+# 只生成某一个
+python scripts/prepare_datasets.py --dataset ibm-hi-small
+```
+
+- 平台“数据资产”页可查看目录、预览样本、生成/刷新抽样；
+- 在调度页数据源下拉选择“大数据抽样｜IBM AML · HI-Small …”即可现场建图；
+- 抽样样本的指标复算：先用该样本执行一次“仅执行图工具分析”，再到数据资产页点“复算规则指标”，
+  或命令行 `python scripts/evaluate_prepared.py --dataset ibm-hi-small`；
+- 详细说明与 8 分钟展示脚本见 [docs/DATASET_GUIDE.md](DATASET_GUIDE.md)。
+
 ---
 
 ## 三、亲手跑一次完整任务
@@ -258,6 +276,8 @@ python scripts\reset_demo_data.py --all
 | Neo4j 连接自检 | `scripts/check_neo4j.py` |
 | 第一台端口放行（8501/7474/7687） | `scripts/open_node1_ports.ps1`（管理员运行） |
 | Neo4j 监听配置 | `D:\softwaredata\neo4j-community\conf\neo4j.conf` 的 `server.default_listen_address` |
+| 数据资产抽样 | `scripts/prepare_datasets.py` → `data/prepared/` |
+| 数据资产使用手册 | `docs/DATASET_GUIDE.md` |
 | 第二台说明 | `docs/NETWORK_NODE2.md` |
 | 平台使用/演示稿 | `docs/platform_guide.md` |
 | 配置模板 | `.env.example`（实际配置在 `.env`，不提交 Git） |

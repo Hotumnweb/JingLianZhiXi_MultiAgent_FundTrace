@@ -1,7 +1,7 @@
 # 警链智析-元智能体驱动的涉诈资金穿透研判系统
 
 > 项目仓库：<https://github.com/Hotumnweb/JingLianZhiXi_MultiAgent_FundTrace>
-> 当前版本：**v0.9 双机联调 + 工具调用元智能体实验台**
+> 当前版本：**v1.0 三机联调 + 元智能体 + 数据资产**
 > 定位：用元智能体做诈骗资金数据分析，第一台是调度中心，第二台提供 GPU 算力，第三台提供工具与图数据。
 
 ## 1. 三机架构
@@ -38,6 +38,7 @@ Neo4j 承担。比赛现场可换成固定内网，只改 `.env`。
 | 元智能体调度 | 固定 Supervisor 流水线：任务下发、提交队列/立即执行、阶段卡实时点亮、调度日志滚动、AI 报告逐 token 输出 |
 | 元智能体自主分析 | Qwen3.5 工具调用实验台：模型自主选择归集/快进快出/资金往来/规则指标工具，Node1/Node3 执行并回传，展示决策轨迹 |
 | 任务队列 | 任务排队/执行状态、子智能体调用记录、中间结果汇总、任务详情与重跑 |
+| 数据资产 | data/new 大数据集目录、确定性抽样生成、样本预览、规则评测与赛场演示路线 |
 | 图数据与工具 | Node3 Neo4j 子图、环形链/归集明细、证据强度排行、Neo4j 复核查询 |
 | Neo4j 操作台 | 现场执行只读 Cypher：图谱规模、Top 入度、快进快出、账户资金往来、约束与索引 |
 | 规则与指标 | 三条图规则口径、当前命中、现场重算精确率/召回率/团伙召回 |
@@ -58,7 +59,7 @@ cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
 streamlit run app.py
 ```
 
-本地实测：平台九页 AppTest 全部无异常；完整流式链路可产生 892 个 token 事件。
+本地实测：平台十页 AppTest 全部无异常；完整流式链路可产生 892 个 token 事件。
 **跨机实测（2026-10-26）**：第一台解析 42,175 条流水 + 建图 + 图分析，第二台 RTX 5060
 生成研判报告耗时 **28.65 秒（34.53 tok/s）**，全链路 **71.9 秒**。
 **元智能体工具调用实测**：Qwen3.5 自主调用归集查询 + 快进快出查询，2 轮完成，约 16 秒。
@@ -76,30 +77,37 @@ streamlit run app.py
   [docs/runbook_manual_operation.md](docs/runbook_manual_operation.md) 的 2.1.1 节配置；
 - 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --all`
   恢复干净环境（图谱、报告、任务、上传流水全部清空），由队员现场重新建图、生成报告；
+- **数据资产**：`data/new/` 已落地 5 套公开大数据集（IBM AML HI/LI、PaySim、Elliptic、
+  IEEE-CIS，约 2.5 GB，git 忽略），由 `scripts/prepare_datasets.py` 生成确定性抽样到
+  `data/prepared/` 后现场使用；平台新增“数据资产”页统一管理与评测，详见
+  [docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)；
 
 ## 4. 目录结构
 
 ```text
 JingLianZhiXi_MultiAgent_FundTrace/
-├── app.py                       # 调度中枢入口（六页面导航）
+├── app.py                       # 调度中枢入口（十页面导航）
 ├── workbench/
 │   ├── theme.py                 # 深色大屏样式与组件
-│   ├── services.py              # 节点状态、报告索引、调度日志、指标计算
+│   ├── services.py              # 节点状态、数据资产、报告索引、调度日志、指标计算
 │   ├── tasks.py                 # 任务队列/任务记录（runtime/tasks）
 │   ├── coordinator.py           # Supervisor 调度执行、调用记录、中间结果、追加指令
 │   ├── runner.py                # 流式编排器（阶段 + token 事件）
 │   ├── graph_view.py            # Plotly + NetworkX 资金网络图
-│   └── pages/                   # 七个页面（含任务队列）
+│   └── pages/                   # 页面：调度/数据资产/图谱/操作台/指标/报告/节点等
 ├── main.py                      # 命令行入口（--no-report / --check-llm）
 ├── llms/remote_llm.py           # Ollama 原生 API（生成 / 流式生成 / 健康检查）
 ├── tools/
 │   ├── parse_flow.py            # 自动识别中文流水 / AML 数据集
 │   ├── graph_query.py           # 建图、三条规则、环检测、子图查询
 │   ├── neo4j_config.py          # Neo4j 连接配置（IP + 端口，兼容旧 NEO4J_URI）
+│   ├── dataset_catalog.py       # 数据资产目录（data/new 数据集元数据与抽样状态）
 │   └── report_writer.py         # 报告/证据落盘 + 兜底报告
 ├── agents/                      # parsing / graph / report 智能体
 ├── supervisor/supervisor_node.py
 ├── scripts/
+│   ├── prepare_datasets.py      # 大数据集确定性抽样（data/prepared）
+│   ├── evaluate_prepared.py     # 抽样样本规则指标复算（含 IBM 模式覆盖）
 │   ├── reset_demo_data.py       # 清理报告/证据/缓存，可选清空 Neo4j
 │   ├── evaluate_on_synthetic_aml.py
 │   ├── check_llm.py
@@ -109,22 +117,47 @@ JingLianZhiXi_MultiAgent_FundTrace/
 │   ├── open_node1_ports.ps1     # 管理员放行 8501/7474/7687（第二台访问平台与 Neo4j）
 │   └── second_node_setup.ps1
 ├── docs/
+│   ├── DATASET_GUIDE.md         # data/new 数据资产使用与赛场展示手册
 │   ├── platform_guide.md        # 平台功能与现场演示脚本
 │   └── second_node_setup.md     # 第二台 GPU 节点部署手册
 ├── data/
 │   ├── sample_flow.csv          # 100 条演示数据
-│   └── synthetic_aml/           # 合成 AML 数据集（CC0）
+│   ├── synthetic_aml/           # 合成 AML 数据集（CC0）
+│   ├── new/                     # 5 套公开大数据集原始文件（约 2.5 GB，git 忽略）
+│   └── prepared/                # 抽样样本（生成物，git 忽略）
 ├── reports/                     # 运行产物（报告 + 证据 + 调度日志，git 忽略）
 └── runtime/tasks/               # 任务队列与任务记录（git 忽略）
 ```
 
 ## 5. 数据说明与合规
 
+内置演示数据：
+
 - `data/synthetic_aml/transactions.csv`：42,175 条交易，金额单位 USD；
 - 3,500 个账户，132 个洗钱账户；22 个团伙（12 环形 + 10 集散式）；
 - 纯虚构合成数据（CC0-1.0），不含真实公民信息；
 - **防标签泄漏**：`is_laundering / laundering_pattern / ring_id` 只在评测脚本读取，
   智能体只看到交易结构，避免“用答案破案”。
+
+`data/new/` 外部大数据集（原始文件约 2.5 GB，不入 Git；现场只用抽样）：
+
+| 数据集 | 原始规模 | 标签 | 演示用途 |
+| :--- | ---: | :--- | :--- |
+| IBM AML · HI-Small | 507.8 万笔 / 51.5 万账户 | 洗钱 5,177 笔 + 8 类模式 | 真实规模建图、规则迁移与模式覆盖 |
+| IBM AML · LI-Small | 692.4 万笔 / 70.5 万账户 | 洗钱 3,565 笔 | 低洗钱率对照 |
+| PaySim | 636.3 万笔 | 诈骗 8,213 笔 | 移动支付场景换源验证 |
+| Elliptic | 203,769 节点 / 234,355 边 | illicit 4,545 | 图结构 / GNN 扩展方向 |
+| IEEE-CIS Fraud | 590,540 笔 / 394 列 | 欺诈 20,663 笔 | 表格模型对照实验 |
+
+生成抽样并现场使用：
+
+```powershell
+python scripts/prepare_datasets.py --all        # 约 45 秒，生成 data/prepared/
+python scripts/evaluate_prepared.py --dataset ibm-hi-small   # 建图后复算指标
+```
+
+详细说明、实测数字与 8 分钟展示脚本见 [docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)；
+平台“数据资产”页提供同样的目录、抽样、预览与评测入口。
 
 ## 6. 图规则与实测指标
 
@@ -152,6 +185,8 @@ python scripts/check_llm.py                   # 检查推理服务（本机/第�
 python scripts/check_neo4j.py                 # 检查 Neo4j 连接（IP + 端口）
 python scripts/preflight_check.py             # 演示前自检
 python scripts/evaluate_on_synthetic_aml.py   # 规则评测
+python scripts/prepare_datasets.py --all      # 生成 data/new 大数据集抽样（约 45 秒）
+python scripts/evaluate_prepared.py --dataset ibm-hi-small   # 抽样样本指标复算
 python scripts/reset_demo_data.py --all       # 清空图谱/报告/任务/上传流水
 ```
 
@@ -190,15 +225,17 @@ python scripts/check_llm.py
 下一步可把它接入任务队列和主流程。答辩口径与升级路线见
 [docs/defense_notes.md](docs/defense_notes.md)。
 
-## 9. 现场演示（建议 5~8 分钟）
+## 9. 现场演示（建议 8 分钟）
 
 1. **调度总览**：三节点分工、Node2 已接入说明、任务队列状态；
 2. **元智能体调度**：提交任务到队列或立即执行，展示阶段卡、日志与报告逐 token 生成；
 3. **任务队列**：执行排队任务、查看调用记录与中间结果、任务重跑；
-4. **图数据与工具**：展示 Node3 的图规则结果与资金网络；
-5. **规则与指标**：现场重算精确率/召回率与团伙级召回；
-6. **研判报告**：打开报告、下载报告与证据；
-7. **节点与工具**：展示节点状态、Node2 接入计划、调度日志与断网自检；任务完成后可追加侦查指令。
+4. **数据资产**：展示 data/new 数据集目录，切 IBM HI-Small / PaySim 抽样再跑一次，
+   展示“换数据源不改代码”与抽样评测（详见 [docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)）；
+5. **图数据与工具**：展示 Node3 的图规则结果与资金网络；
+6. **规则与指标**：现场重算精确率/召回率与团伙级召回；
+7. **研判报告**：打开报告、下载报告与证据；
+8. **节点与工具**：展示节点状态、Node2 接入计划、调度日志与断网自检；任务完成后可追加侦查指令。
 
 完整讲解词见 [docs/platform_guide.md](docs/platform_guide.md)。
 

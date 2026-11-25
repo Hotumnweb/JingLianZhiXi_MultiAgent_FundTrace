@@ -166,6 +166,20 @@ a { color: var(--jz-accent); }
 .jz-node-detail { color: var(--jz-muted); font-size: 11px; line-height: 1.55; }
 .jz-node-endpoint { color: #64748b; font-size: 10px; margin-top: 5px; word-break: break-all; }
 
+/* 数据资产卡片 */
+.jz-ds {
+  border: 1px solid var(--jz-border);
+  border-radius: 14px; padding: 14px 15px;
+  background: linear-gradient(160deg, rgba(15, 23, 42, .88), rgba(8, 13, 24, .72));
+  height: 100%;
+}
+.jz-ds-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.jz-ds-name { color: #f8fafc; font-size: 14px; font-weight: 700; line-height: 1.35; }
+.jz-ds-scale { color: #7dd3fc; font-size: 11.5px; margin: 7px 0 6px 0; line-height: 1.5; }
+.jz-ds-line { color: var(--jz-muted); font-size: 11px; line-height: 1.6; margin-top: 3px; }
+.jz-ds-role { color: #cbd5e1; font-size: 11.5px; line-height: 1.62; margin-top: 7px; }
+.jz-ds-foot { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+
 /* 流水线阶段 */
 .jz-stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 12px 0; }
 .jz-stage {
@@ -486,6 +500,64 @@ def kpi_card(label: str, value, hint: str = "", accent: str = ACCENT) -> str:
       <div class="jz-kpi-label">{esc(label)}</div>
       <div class="jz-kpi-value">{esc(value)}</div>
       <div class="jz-kpi-hint">{esc(hint)}</div>
+    </div>
+    """
+
+
+_KIND_TONE = {"flow": "info", "graph": "warn", "tabular": "muted"}
+_KIND_LABEL = {"flow": "资金流水", "graph": "图结构", "tabular": "表格数据"}
+
+
+def dataset_card(dataset: dict) -> str:
+    """数据资产卡片（纯展示；按钮由页面单独放置，保证可交互）。"""
+    status = dataset.get("prepared_status") or {}
+    ready = bool(status.get("ready"))
+    prepared = bool(dataset.get("prepared"))
+    if ready:
+        status_text, status_tone = "已生成抽样", "ok"
+    elif prepared:
+        status_text, status_tone = "待生成抽样", "warn"
+    else:
+        status_text, status_tone = "原始可用", "muted"
+
+    kind = dataset.get("kind", "flow")
+    labels = dataset.get("labels") or {}
+    label_text = labels.get("type", "无标签") if labels.get("available") else "无标签"
+    meta = status.get("meta") or {}
+    extra = ""
+    if ready and meta:
+        parts = []
+        if meta.get("rows"):
+            parts.append(f"抽样 {int(meta['rows']):,} 笔")
+        if meta.get("accounts"):
+            parts.append(f"{int(meta['accounts']):,} 账户")
+        if meta.get("laundering_rows"):
+            parts.append(f"洗钱 {int(meta['laundering_rows']):,} 笔")
+        if meta.get("fraud_rows"):
+            parts.append(f"诈骗 {int(meta['fraud_rows']):,} 笔")
+        if meta.get("nodes"):
+            parts.append(f"{int(meta['nodes']):,} 节点")
+        if parts:
+            extra = f'<div class="jz-ds-line">已备：{" · ".join(parts)}</div>'
+
+    tags = "".join(
+        pill(text, tone)
+        for text, tone in (
+            (_KIND_LABEL.get(kind, kind), _KIND_TONE.get(kind, "info")),
+            (status_text, status_tone),
+        )
+    )
+    return f"""
+    <div class="jz-ds">
+      <div class="jz-ds-head">
+        <div class="jz-ds-name">{esc(dataset.get('name', ''))}</div>
+        <span class="jz-ds-foot" style="margin-top:0;">{tags}</span>
+      </div>
+      <div class="jz-ds-scale">{esc(dataset.get('scale_text', ''))}</div>
+      <div class="jz-ds-line">标签：{esc(label_text)}</div>
+      <div class="jz-ds-line">许可：{esc(dataset.get('license', ''))}</div>
+      <div class="jz-ds-role">{esc(dataset.get('role', ''))}</div>
+      {extra}
     </div>
     """
 
