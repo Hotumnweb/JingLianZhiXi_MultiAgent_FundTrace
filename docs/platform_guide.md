@@ -123,6 +123,7 @@ streamlit run app.py
 ## 六、Neo4j 操作台
 
 - 页面：左侧“Neo4j 操作台”；
+- 页面顶部显示当前连接地址（`.env` 的 `NEO4J_HOST` + `NEO4J_PORT`，本机回环 `127.0.0.1:7687`）；
 - 预设：图谱规模、Top 入度、快进快出、账户资金往来、约束与索引；
 - 也支持自定义只读 Cypher（禁止写操作，避免误改演示数据）；
 - 结果表可下载 CSV；查询会写入审计日志 `reports/audit/audit.jsonl`；

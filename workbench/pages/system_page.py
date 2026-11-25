@@ -23,6 +23,8 @@ def render() -> None:
 
     nodes = services.node_status()
     node2 = next((node for node in nodes if node.get("id") == "node2"), {})
+    node3 = next((node for node in nodes if node.get("id") == "node3"), {})
+    neo4j = services.neo4j_connection()
     node_cols = st.columns(3)
     for col, node in zip(node_cols, nodes):
         col.markdown(theme.node_card(node), unsafe_allow_html=True)
@@ -48,8 +50,12 @@ def render() -> None:
             {
                 "节点": "Node3",
                 "角色": "工具执行与图数据（Tool & Graph）",
-                "目标地址": targets["node3"],
-                "当前状态": "本机部署",
+                "目标地址": f"{neo4j['endpoint']}（{'本机回环' if neo4j['local'] else '远程'}）",
+                "当前状态": (
+                    ("本机部署 · 在线" if neo4j["local"] else "远程节点 · 在线")
+                    if node3.get("status") == "online"
+                    else "Neo4j 离线"
+                ),
             },
         ],
         width="stretch",
@@ -88,7 +94,7 @@ def render() -> None:
                 {"能力": "任务调度", "提供方": "Node1 · LangGraph Supervisor", "接口/协议": "进程内 StateGraph"},
                 {"能力": "任务队列/状态", "提供方": "Node1 · Coordinator", "接口/协议": "runtime/tasks/*.json"},
                 {"能力": "大模型推理", "提供方": "Node2 · Qwen3.5-9B-tools + Ollama", "接口/协议": "/api/chat + tools"},
-                {"能力": "图数据库", "提供方": "Node3 · Neo4j", "接口/协议": "Bolt 7687"},
+                {"能力": "图数据库", "提供方": "Node3 · Neo4j", "接口/协议": f"Bolt {neo4j['port']}"},
                 {"能力": "图规则与子图查询", "提供方": "Node3 · Cypher", "接口/协议": "Bolt / Cypher"},
                 {"能力": "流水解析", "提供方": "Node3 · pandas / pdfplumber", "接口/协议": "本地工具"},
                 {"能力": "报告归档", "提供方": "Node1 · reports/", "接口/协议": "Markdown + JSON"},
@@ -108,9 +114,11 @@ def render() -> None:
         """
     )
 
-    theme.section("Node3 工具与图数据", "本机部署")
+    theme.section("Node3 工具与图数据", "Neo4j · IP + 端口配置")
     st.markdown(
-        """
+        f"""
+        - **连接地址**：`{neo4j['endpoint']}`（IP + 端口，来自 `.env` 的 `NEO4J_HOST` / `NEO4J_PORT`）
+        - **驱动 URI**：`{neo4j['uri']}`（由 IP + 端口自动拼出，无需手写）
         - **Neo4j 图数据库**：账户节点、TRANSFER 关系、Cypher 查询
         - **文件解析**：pandas 解析 CSV 流水
         - **图规则**：快进快出 / 多层归集 / 环形转账

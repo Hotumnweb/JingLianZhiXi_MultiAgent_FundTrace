@@ -56,9 +56,14 @@ def check_data() -> None:
 def check_neo4j() -> None:
     try:
         from tools.graph_query import close_driver, graph_summary
+        from tools.neo4j_config import connection_info
 
+        info = connection_info()
         summary = graph_summary()
-        detail = f"连接正常；当前图谱 {summary['accounts']} 个账户 / {summary['transfers']} 条转账"
+        detail = (
+            f"{info['endpoint']} 连接正常；"
+            f"当前图谱 {summary['accounts']} 个账户 / {summary['transfers']} 条转账"
+        )
         record("Neo4j", True, detail)
         if summary["transfers"] == 0:
             record("Neo4j 数据", False, "图谱为空，请先运行 python main.py 建图", critical=False)

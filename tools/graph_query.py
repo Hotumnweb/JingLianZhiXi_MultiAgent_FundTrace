@@ -20,22 +20,21 @@
 
 阈值来自对 data/synthetic_aml 数据集的离线评测，
 见 scripts/evaluate_on_synthetic_aml.py。
+
+连接配置（IP + 端口）统一由 tools/neo4j_config.py 读取：
+    NEO4J_HOST=127.0.0.1
+    NEO4J_PORT=7687
+也兼容旧写法 NEO4J_URI=bolt://localhost:7687。
 """
 
-import os
 import re
 import time
 from collections import defaultdict
 from datetime import datetime
 
-from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-load_dotenv()
-
-_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-_USER = os.getenv("NEO4J_USER", "neo4j")
-_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
+from tools.neo4j_config import load_neo4j_config
 
 # 惰性创建：import 本模块不会立刻连接数据库，便于先做代码校验
 _driver = None
@@ -56,11 +55,31 @@ _INVALID_ACCOUNTS = {"", "nan", "none", "null"}
 
 
 def get_driver():
-    """惰性创建并复用 Neo4j 驱动。"""
+    """惰性创建并复用 Neo4j 驱动（地址来自 .env 的 NEO4J_HOST + NEO4J_PORT）。"""
     global _driver
     if _driver is None:
-        _driver = GraphDatabase.driver(_URI, auth=(_USER, _PASSWORD))
+        config = load_neo4j_config()
+        _driver = GraphDatabase.driver(
+            config.uri,
+            auth=(config.user, config.password),
+            connection_timeout=config.connection_timeout,
+        )
     return _driver
+
+
+def _session():
+    """创建会话；配置了 NEO4J_DATABASE 时指定数据库，否则用服务端默认库。"""
+    config = load_neo4j_config()
+    if config.database:
+        return get_driver().session(database=config.database)
+    return get_driver().session()
+
+
+def connection_info() -> dict:
+    """当前 Neo4j 连接配置（host / port / uri / 是否本机），供平台展示。"""
+    from tools.neo4j_config import connection_info as _connection_info
+
+    return _connection_info()
 
 
 def close_driver() -> None:
@@ -72,13 +91,13 @@ def close_driver() -> None:
 
 def ensure_schema() -> None:
     """建立 :Account(id) 唯一约束（MERGE 写入 4 万条边时必须，否则会 O(n²) 扫表）。"""
-    with get_driver().session() as session:
+    with _session() as session:
         session.run(_SCHEMA_QUERY)
 
 
 def clear_graph() -> None:
     """清空整个图谱（第一版每次重新建图，保证结果可复现）。"""
-    with get_driver().session() as session:
+    with _session() as session:
         session.run("MATCH (n) DETACH DELETE n")
 
 
@@ -142,7 +161,7 @@ def write_transactions(
         counts[row["to_account"]] += 1
     count_rows = [{"id": account, "count": count} for account, count in counts.items()]
 
-    with get_driver().session() as session:
+    with _session() as session:
         for start in range(0, len(rows), batch_size):
             chunk = rows[start : start + batch_size]
             session.execute_write(_write_batch, chunk)
@@ -153,7 +172,7 @@ def write_transactions(
 
 def graph_summary() -> dict:
     """获取当前图谱的账户数和边数，供 Agent 打印日志用。"""
-    with get_driver().session() as session:
+    with _session() as session:
         accounts = session.run("MATCH (n:Account) RETURN count(n) AS c").single()["c"]
         transfers = session.run("MATCH ()-[r:TRANSFER]->() RETURN count(r) AS c").single()["c"]
     return {"accounts": accounts, "transfers": transfers}
@@ -170,7 +189,7 @@ def find_fast_in_fast_out(
     返回 [{"account": ..., "hit_count": ..., "outflow": ...}]，
     按命中次数、转出金额降序。
     """
-    with get_driver().session() as session:
+    with _session() as session:
         result = session.run(
             """
             MATCH (a:Account)-[r1:TRANSFER]->(b:Account)-[r2:TRANSFER]->(c:Account)
@@ -235,7 +254,7 @@ def find_fan_in(
     LIMIT 1000
     """
     best: dict[str, dict] = {}
-    with get_driver().session() as session:
+    with _session() as session:
         for record in session.run(
             query,
             {
@@ -261,7 +280,7 @@ def find_fan_in(
 
 def _load_edges() -> list[tuple[str, str, float, str]]:
     """从 Neo4j 读取全部转账边，供环形转账检测使用。"""
-    with get_driver().session() as session:
+    with _session() as session:
         result = session.run(
             """
             MATCH (a:Account)-[r:TRANSFER]->(b:Account)
@@ -385,7 +404,7 @@ def fetch_subgraph(account_ids: list[str], limit: int = 900) -> dict:
     if not ids:
         return {"nodes": [], "edges": [], "truncated": False}
 
-    with get_driver().session() as session:
+    with _session() as session:
         result = session.run(
             """
             MATCH (a:Account)-[r:TRANSFER]->(b:Account)
@@ -466,7 +485,7 @@ def run_readonly_cypher(query: str, limit: int = 200) -> dict:
         raise ValueError(f"检测到写操作关键字：{', '.join(sorted(blocked))}；操作台仅允许只读查询")
 
     started = time.perf_counter()
-    with get_driver().session() as session:
+    with _session() as session:
         result = session.run(text)
         columns = list(result.keys())
         rows: list[dict] = []

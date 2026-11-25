@@ -67,12 +67,24 @@ def render() -> None:
     theme.section("Neo4j 操作台", "只读 Cypher · 图谱与规则复核")
 
     stats = services.graph_stats()
+    connection = services.neo4j_connection()
     cols = st.columns(4)
     cols[0].metric("账户节点", f"{stats.get('accounts', 0):,}")
     cols[1].metric("转账关系", f"{stats.get('transfers', 0):,}")
-    cols[2].metric("数据库端", stats.get("error") and "离线" or "在线")
+    cols[2].metric(
+        "数据库端",
+        stats.get("error") and "离线" or "在线",
+        help=f"连接地址：{connection['endpoint']}",
+    )
     cols[3].metric("操作模式", "只读查询")
 
+    st.caption(
+        f"连接配置：**{connection['endpoint']}**"
+        f"（{'本机回环' if connection['local'] else '远程 Node3'}）· "
+        f"用户 {connection['user']}"
+        + (f" · 数据库 {connection['database']}" if connection["database"] else "")
+        + " · 地址来自 .env 的 NEO4J_HOST / NEO4J_PORT"
+    )
     st.caption("只读查询，用于复核图谱结构与规则结果。")
 
     mode = st.radio(

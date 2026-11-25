@@ -143,7 +143,8 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 - 第一版把失败原因直接打印出来更方便排查
         print(f"\n[运行失败] {type(exc).__name__}: {exc}")
         print(
-            "排查顺序：1) Neo4j 是否已启动（localhost:7687）；"
+            "排查顺序：1) Neo4j 是否已启动、.env 的 NEO4J_HOST/NEO4J_PORT 是否正确"
+            "（可运行 python scripts/check_neo4j.py）；"
             "2) 流水文件是否存在；3) .env 中 Neo4j 密码是否正确"
         )
         return 1

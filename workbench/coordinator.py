@@ -42,9 +42,10 @@ def inference_node_label() -> str:
 
 
 def tool_node_label() -> str:
-    """Node3 的显示名称。"""
-    uri = os.getenv("NEO4J_URI", "")
-    if "127.0.0.1" in uri or "localhost" in uri:
+    """Node3 的显示名称（按 .env 的 NEO4J_HOST 判断本机回环还是内网工具节点）。"""
+    from tools.neo4j_config import load_neo4j_config
+
+    if load_neo4j_config().is_local:
         return "Node3（本机调试）"
     return "Node3（工具与图数据节点）"
 

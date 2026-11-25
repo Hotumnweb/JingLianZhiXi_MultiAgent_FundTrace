@@ -67,7 +67,10 @@ streamlit run app.py
 
 - 第二台 GPU 节点：**已接入**，IP `192.168.0.200`，模型 `qwen3.5-9b-tools:q4km`，
   必须 `LLM_THINK=false`；详细说明见 [docs/NETWORK_NODE2.md](docs/NETWORK_NODE2.md)；
-- 第三台工具与图数据节点：开发调试阶段部署在本机（Neo4j + pandas），目标地址 `192.168.50.3`；
+- 第三台工具与图数据节点：开发调试阶段部署在本机（Neo4j + pandas）；Neo4j 连接地址
+  统一用 **IP + 端口** 配置（`.env` 的 `NEO4J_HOST` / `NEO4J_PORT`，本机回环即
+  `127.0.0.1` + `7687`），部署到 Node3 时只改这两行（如 `10.20.30.30` + `7687`）；
+  连接自检：`python scripts/check_neo4j.py`；
 - 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --all`
   恢复干净环境（图谱、报告、任务、上传流水全部清空），由队员现场重新建图、生成报告；
 
@@ -89,6 +92,7 @@ JingLianZhiXi_MultiAgent_FundTrace/
 ├── tools/
 │   ├── parse_flow.py            # 自动识别中文流水 / AML 数据集
 │   ├── graph_query.py           # 建图、三条规则、环检测、子图查询
+│   ├── neo4j_config.py          # Neo4j 连接配置（IP + 端口，兼容旧 NEO4J_URI）
 │   └── report_writer.py         # 报告/证据落盘 + 兜底报告
 ├── agents/                      # parsing / graph / report 智能体
 ├── supervisor/supervisor_node.py
@@ -96,6 +100,7 @@ JingLianZhiXi_MultiAgent_FundTrace/
 │   ├── reset_demo_data.py       # 清理报告/证据/缓存，可选清空 Neo4j
 │   ├── evaluate_on_synthetic_aml.py
 │   ├── check_llm.py
+│   ├── check_neo4j.py           # Neo4j 连接自检（IP + 端口）
 │   ├── preflight_check.py
 │   ├── generate_sample_data.py
 │   └── second_node_setup.ps1
@@ -140,6 +145,7 @@ streamlit run app.py                          # 启动调度中枢
 python main.py                                # 命令行完整链路（含 AI 报告）
 python main.py --no-report                    # 只跑图工具分析
 python scripts/check_llm.py                   # 检查推理服务（本机/第二台）
+python scripts/check_neo4j.py                 # 检查 Neo4j 连接（IP + 端口）
 python scripts/preflight_check.py             # 演示前自检
 python scripts/evaluate_on_synthetic_aml.py   # 规则评测
 python scripts/reset_demo_data.py --all       # 清空图谱/报告/任务/上传流水
@@ -198,7 +204,7 @@ python scripts/check_llm.py
 | :--- | :--- |
 | 平台页面为空 | 演示数据已清理；在“元智能体调度”下发任务即可重建 |
 | Node2 显示离线 | 检查第二台 Ollama 是否监听 0.0.0.0:11434、防火墙/网络是否变化；跑 `python scripts/connect_node2.py` |
-| Node3 显示离线 | Neo4j 未启动；用 JDK 17 启动后刷新节点状态 |
+| Node3 显示离线 | Neo4j 未启动，或 `.env` 的 `NEO4J_HOST` / `NEO4J_PORT` 与实际监听不一致；启动 Neo4j 后跑 `python scripts/check_neo4j.py` 验证 |
 | AI 报告很慢 | 第二台 GPU 当前约 30 秒；若回退到本机 CPU 调试约 2~4 分钟 |
 | 报告 content 为空 | Qwen3.5 必须 `LLM_THINK=false`（`connect_node2.py` 会自动写入） |
 | 报告状态 fallback | AI 不可达，自动降级为规则模板报告 |

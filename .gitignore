@@ -23,5 +23,14 @@ data/imports/
 .ipynb_checkpoints/
 data/synthetic_aml/Untitled.ipynb
 
+# 大体积外部数据集（data/new 下为下载的原始数据集，不入库）
+data/new/
+
+# 3D 演示产物（模型/渲染/视频体积大，由桌面单独管理）
+3d-visualization/
+
+# 会话/办公临时目录
+.dsh-office-*/
+
 # 文档由桌面单独管理
 *.docx

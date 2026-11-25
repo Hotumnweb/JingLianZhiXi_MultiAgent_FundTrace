@@ -77,6 +77,23 @@ D:\softwaredata\neo4j-community\start-neo4j.bat
 - 浏览器打开 <http://localhost:7474>，账号 `neo4j`，密码 `fraud2026`；
 - 执行 `RETURN 1;` 能返回结果，说明图数据库正常。
 
+平台连接 Neo4j 用的是 **IP + 端口**，配置在 `.env`：
+
+```env
+NEO4J_HOST=127.0.0.1
+NEO4J_PORT=7687
+```
+
+- 本机回环就是 `127.0.0.1` + `7687`；部署到第三台工具节点时改成内网 IP（如 `10.20.30.30`）；
+- 旧写法 `NEO4J_URI=bolt://localhost:7687` 仍兼容，但优先级低于 IP + 端口；
+- 改完 `.env` 后重启平台进程，然后验证连接：
+
+```powershell
+python scripts\check_neo4j.py
+```
+
+预期看到 `[OK] Bolt 可达` 与当前图谱规模。
+
 ### 2.2 确认第二台 AI（Node2）在线
 
 第二台需要保持：
@@ -129,7 +146,8 @@ powershell -ExecutionPolicy Bypass -File scripts\open_node1_ports.ps1
 
 - Node1 调度中心：在线；
 - Node2 GPU 算力中心：在线，模型 `qwen3.5-9b-tools:q4km`；
-- Node3 工具与图数据：在线，若图谱为空显示 `0 账户 / 0 转账`。
+- Node3 工具与图数据：在线，地址显示为 `.env` 配置的 `IP:端口`（如 `127.0.0.1:7687 · 本机`），
+  若图谱为空显示 `0 账户 / 0 转账`。
 
 ---
 
@@ -196,6 +214,7 @@ python scripts\reset_demo_data.py --all
 | `check_llm.py` 报连不上 | 先 `ping 192.168.0.200`，再 `Test-NetConnection 192.168.0.200 -Port 11434`；必要时重跑 `connect_node2.py` |
 | AI 返回 content 为空 | Qwen3.5 必须 `LLM_THINK=false`；重新运行 `connect_node2.py` 会自动写入 |
 | Neo4j 启动报 Java 版本 | 使用 `start-neo4j.bat`（内部已设置 JDK17） |
+| Neo4j 连不上 / Node3 离线 | 检查 `.env` 的 `NEO4J_HOST` / `NEO4J_PORT` 是否等于实际监听地址；跑 `python scripts\check_neo4j.py` 定位 |
 | 平台 8501 被占用 | `streamlit run app.py --server.port 8502` |
 | 第二台访问不了平台 | 第一台管理员运行 `scripts\open_node1_ports.ps1` |
 | 想验证外网是否断开 | 平台“节点与工具”点“外网隔离检测” |
@@ -212,6 +231,8 @@ python scripts\reset_demo_data.py --all
 | 报告与证据 | `reports/`（运行时自动生成） |
 | 任务记录 | `runtime/tasks/`（运行时自动生成） |
 | 第二台接入脚本 | `scripts/connect_node2.py` |
+| Neo4j 连接配置 | `.env` 的 `NEO4J_HOST` / `NEO4J_PORT`（IP + 端口） |
+| Neo4j 连接自检 | `scripts/check_neo4j.py` |
 | 第二台说明 | `docs/NETWORK_NODE2.md` |
 | 平台使用/演示稿 | `docs/platform_guide.md` |
 | 配置模板 | `.env.example`（实际配置在 `.env`，不提交 Git） |

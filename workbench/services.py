@@ -262,6 +262,13 @@ def graph_stats() -> dict:
         return {"accounts": 0, "transfers": 0, "error": f"{type(exc).__name__}: {exc}"}
 
 
+def neo4j_connection() -> dict:
+    """Neo4j 连接配置（IP + 端口写法），供节点状态与 Neo4j 操作台展示。"""
+    from tools.neo4j_config import connection_info
+
+    return connection_info()
+
+
 def latest_evidence() -> dict | None:
     """最近一次运行的证据 JSON。"""
     if not REPORTS_DIR.exists():
@@ -606,7 +613,9 @@ def node_status() -> list[dict]:
             }
         )
 
-    # 第三台：工具与图数据节点（当前开发环境部署在本机）
+    # 第三台：工具与图数据节点（Neo4j 地址来自 .env 的 NEO4J_HOST + NEO4J_PORT）
+    neo4j = neo4j_connection()
+    neo4j_label = f"{neo4j['endpoint']} · {'本机' if neo4j['local'] else '远程'}"
     try:
         from tools.graph_query import graph_summary
 
@@ -620,7 +629,7 @@ def node_status() -> list[dict]:
                 "name": "工具与图数据节点",
                 "role": "工具执行与图数据",
                 "role_en": "Tool & Graph",
-                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + " · 本机",
+                "endpoint": neo4j_label,
                 "status": "online",
                 "latency_ms": latency,
                 "detail": (
@@ -637,10 +646,10 @@ def node_status() -> list[dict]:
                 "name": "工具与图数据节点",
                 "role": "工具执行与图数据",
                 "role_en": "Tool & Graph",
-                "endpoint": os.getenv("NEO4J_URI", "bolt://localhost:7687") + " · 本机",
+                "endpoint": neo4j_label,
                 "status": "offline",
                 "latency_ms": 0,
-                "detail": "Neo4j 未连接 · 请启动图数据库",
+                "detail": "Neo4j 未连接 · 请启动图数据库或检查 NEO4J_HOST/NEO4J_PORT",
             }
         )
 
