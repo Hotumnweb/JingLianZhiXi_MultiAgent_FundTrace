@@ -69,7 +69,7 @@ def load_llm_config() -> LLMConfig:
     return LLMConfig(
         base_url=_normalize_base_url(os.getenv("OLLAMA_BASE_URL", DEFAULT_BASE_URL)),
         model=os.getenv("OLLAMA_MODEL", DEFAULT_MODEL).strip(),
-        timeout=int(os.getenv("LLM_TIMEOUT", "600")),
+        timeout=int(os.getenv("LLM_TIMEOUT", "180")),
         temperature=float(os.getenv("LLM_TEMPERATURE", "0.1")),
         max_tokens=int(os.getenv("LLM_MAX_TOKENS", "800")),
         num_ctx=int(os.getenv("LLM_NUM_CTX", "4096")),

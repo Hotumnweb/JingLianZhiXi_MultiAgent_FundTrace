@@ -2,10 +2,11 @@
 """任务队列页：排队任务、执行队列、任务详情、调用记录与重跑。"""
 
 from pathlib import Path
+import time
 
 import streamlit as st
 
-from workbench import coordinator, services, tasks, theme
+from workbench import coordinator, executor, services, tasks, theme
 
 _STATUS_TONE = {
     tasks.STATUS_QUEUED: "info",
@@ -172,26 +173,30 @@ def _render_detail(task: dict) -> None:
 
 
 def _execute_queue(pending: list[dict]) -> None:
-    progress = st.progress(0.0, text=f"队列共 {len(pending)} 个任务")
+    pending_ids = [task["id"] for task in pending]
+    if not executor.start_queue(pending_ids):
+        st.error("已有任务/队列在后台执行，请等待完成后再试。")
+        return
+    progress = st.progress(0.0, text=f"队列共 {len(pending)} 个任务（后台执行）")
     status_box = st.empty()
-    success = 0
-    for index, queued in enumerate(pending):
+    while executor.queue_active() or executor.active_ids():
+        summary = tasks.queue_summary()
+        finished = summary[tasks.STATUS_COMPLETED] + summary[tasks.STATUS_FAILED]
         status_box.markdown(
-            f"执行任务 `{queued['id']}`（{index + 1}/{len(pending)}）……"
+            f"后台执行中：已完成/失败 {finished} 个，排队 {summary[tasks.STATUS_QUEUED]} 个；"
+            "切换页面或刷新不会中断队列。"
         )
-        try:
-            for kind, node, payload in coordinator.iter_task(queued):
-                if kind == "update":
-                    status_box.markdown(
-                        f"任务 `{queued['id']}`：`{node}` 完成（{index + 1}/{len(pending)}）"
-                    )
-        except Exception as exc:  # noqa: BLE001
-            st.error(f"任务 {queued['id']} 执行异常：{type(exc).__name__}: {exc}")
-        task_now = tasks.load_task(queued["id"])
-        if task_now and task_now.get("status") == tasks.STATUS_COMPLETED:
-            success += 1
-        progress.progress((index + 1) / len(pending), text=f"已完成 {index + 1}/{len(pending)}")
-    st.session_state["queue_flash"] = f"队列执行完成：{success}/{len(pending)} 个任务成功"
+        progress.progress(
+            min(0.99, finished / max(len(pending), 1)),
+            text=f"已完成 {finished}/{len(pending)}",
+        )
+        time.sleep(0.5)
+    success = sum(
+        1
+        for task_id in pending_ids
+        if (tasks.load_task(task_id) or {}).get("status") == tasks.STATUS_COMPLETED
+    )
+    st.session_state["queue_flash"] = f"队列执行完成：{success}/{len(pending_ids)} 个任务成功"
     st.rerun()
 
 

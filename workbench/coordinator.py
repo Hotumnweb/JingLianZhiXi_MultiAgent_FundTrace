@@ -242,6 +242,51 @@ def _finalize_task(task: dict, final_state: dict, duration: float) -> None:
     tasks.save_task(task)
 
 
+def recover_stale_tasks(max_age_seconds: float = 90.0) -> list[str]:
+    """把“执行线程已中断”的 running 任务标记为失败。
+
+    页面刷新/切换页面/平台重启会杀掉旧的内联执行线程，任务 JSON 会永远停在
+    running；新版后台执行器（workbench.executor）里的任务不会被误判。
+    """
+    from workbench import executor
+
+    recovered: list[str] = []
+    now = datetime.now()
+    for task in tasks.list_tasks(limit=200):
+        if task.get("status") != tasks.STATUS_RUNNING:
+            continue
+        if executor.is_running(task["id"]):
+            continue
+        raw = str(task.get("updated_at") or task.get("started_at") or "")
+        try:
+            updated = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            updated = None
+        if updated is not None and (now - updated).total_seconds() < max_age_seconds:
+            continue
+        duration = None
+        try:
+            started = datetime.strptime(
+                str(task.get("started_at") or ""), "%Y-%m-%d %H:%M:%S"
+            )
+            duration = round((now - started).total_seconds(), 1)
+        except ValueError:
+            duration = None
+        try:
+            tasks.update_task(
+                task["id"],
+                status=tasks.STATUS_FAILED,
+                error="执行线程已中断（页面刷新/切换页面/平台重启），任务未完成，请重新执行。",
+                finished_at=_now(),
+                duration_s=duration,
+                progress=1.0,
+            )
+            recovered.append(task["id"])
+        except Exception:  # noqa: BLE001
+            continue
+    return recovered
+
+
 def follow_up(task_id: str, instruction: str) -> str:
     """对已有任务执行“追加指令”：把当前证据与报告交给 AI 做补充研判。"""
     from llms.remote_llm import generate

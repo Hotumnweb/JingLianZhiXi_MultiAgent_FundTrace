@@ -43,6 +43,14 @@ st.set_page_config(
 )
 theme.inject_theme()
 
+# 页面刷新/平台重启后，把已经中断的“执行中”任务标记为失败，避免永远卡在执行中
+try:
+    from workbench import coordinator as _coordinator
+
+    _coordinator.recover_stale_tasks()
+except Exception:  # noqa: BLE001 - 恢复失败不影响页面
+    pass
+
 PAGES = {
     "调度总览": overview.render,
     "元智能体调度": orchestration.render,

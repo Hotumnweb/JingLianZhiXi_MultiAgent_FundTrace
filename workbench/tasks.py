@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -90,10 +91,14 @@ def create_task(
 def save_task(task: dict) -> None:
     ensure_dir()
     task["updated_at"] = _now()
-    _task_path(task["id"]).write_text(
+    path = _task_path(task["id"])
+    # 先写临时文件再原子替换，避免页面读到写了一半的 JSON
+    tmp_path = path.with_suffix(".json.tmp")
+    tmp_path.write_text(
         json.dumps(task, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    os.replace(tmp_path, path)
 
 
 def update_task(task_id: str, **fields) -> dict:
@@ -113,6 +118,39 @@ def load_task(task_id: str) -> dict | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return None
+
+
+def _stream_path(task_id: str) -> Path:
+    return TASK_DIR / f"{task_id}.stream"
+
+
+def append_stream(task_id: str, text: str) -> None:
+    """追加 AI 流式输出（独立文件，避免和任务 JSON 的频繁写入互相覆盖）。"""
+    if not text:
+        return
+    ensure_dir()
+    with _stream_path(task_id).open("a", encoding="utf-8") as handle:
+        handle.write(text)
+
+
+def read_stream(task_id: str, max_chars: int = 20000) -> str:
+    path = _stream_path(task_id)
+    if not path.exists():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        return ""
+    return text[-max_chars:]
+
+
+def clear_stream(task_id: str) -> None:
+    path = _stream_path(task_id)
+    if path.exists():
+        try:
+            path.unlink()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def list_tasks(limit: int = 200) -> list[dict]:

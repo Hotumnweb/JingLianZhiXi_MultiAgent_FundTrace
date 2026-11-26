@@ -17,7 +17,7 @@ from pathlib import Path
 import streamlit as st
 
 from llms.remote_llm import report_agent_enabled
-from workbench import coordinator, services, tasks, theme
+from workbench import coordinator, executor, services, tasks, theme
 from workbench.runner import STAGES
 
 INSTRUCTION_TEMPLATES = {
@@ -478,6 +478,16 @@ def render() -> None:
                 st.caption("暂无任务记录。")
 
     if not (submit_queue or run_now or run_graph_only):
+        active = executor.active_ids()
+        if active:
+            running = tasks.load_task(active[-1]) or {}
+            percent = int(float(running.get("progress") or 0) * 100)
+            st.info(
+                f"任务 `{active[-1]}` 正在后台执行（进度 {percent}%）。"
+                "任务不依赖当前页面，切换页面或刷新浏览器不会中断；完成后可在“任务队列”查看。"
+            )
+            if st.button("刷新执行进度", key="refresh_active_task"):
+                st.rerun()
         last_id = st.session_state.get("last_task_id")
         last_task = tasks.load_task(last_id) if last_id else None
         if last_task is None:
@@ -521,85 +531,85 @@ def render() -> None:
     )
     badge_slot.markdown(theme.pill(f"执行中 · {task['id']}", "warn"), unsafe_allow_html=True)
 
-    done: set[str] = set()
-    logs: list[str] = []
-    tokens: list[str] = []
-    final_state: dict = {}
+    task_id = task["id"]
     started = time.perf_counter()
 
-    def refresh_stages(active: str | None = None) -> None:
+    def refresh_stages(done_nodes: set[str], active: str | None = None) -> None:
         stage_box.markdown(
-            theme.pipeline_stages(STAGES, _stage_states(done), active),
+            theme.pipeline_stages(STAGES, _stage_states(done_nodes), active),
             unsafe_allow_html=True,
         )
 
-    status_line.markdown(f"任务 `{task['id']}` 已启动……")
-    failed = False
-    try:
-        for kind, node, payload in coordinator.iter_task(task):
-            if kind == "update":
-                if node in {key for key, _, _ in STAGES}:
-                    done.add(node)
-                refresh_stages(active=node)
-                if isinstance(payload, dict) and payload.get("logs"):
-                    logs = [str(line) for line in payload["logs"]]
-                progress.progress(
-                    min(0.97, 0.10 + 0.28 * len(done)),
-                    text=f"运行中：{node} · 已用时 {time.perf_counter() - started:.1f}s",
-                )
-                status_line.markdown(
-                    f"任务 `{task['id']}` · 运行中：`{node}` · "
-                    f"已用时 **{time.perf_counter() - started:.1f}s**"
-                )
-                log_box.code("\n".join(logs[-120:]) if logs else "（等待日志）", language="text")
-            elif kind == "custom":
-                if isinstance(payload, dict) and payload.get("type") == "token":
-                    tokens.append(str(payload.get("text") or ""))
-                    if tokens and len(tokens) % 4 == 0:
-                        token_box.markdown("".join(tokens))
-            elif kind == "final":
-                final_state = payload
-            elif kind == "task_done":
-                task = tasks.load_task(task["id"]) or task
-            elif kind == "task_failed":
-                task = payload or tasks.load_task(task["id"]) or task
-                failed = True
-
-        if failed:
-            progress.progress(1.0, text="任务失败")
-            status_line.error(f"任务失败：{task.get('error', '未知错误')}")
-            badge_slot.markdown(theme.pill("失败", "danger"), unsafe_allow_html=True)
-            _render_bottom(task)
-            return
-
-        refresh_stages()
-        progress.progress(1.0, text="任务完成")
-        elapsed = time.perf_counter() - started
-        task = tasks.load_task(task["id"]) or task
-        st.session_state["last_task_id"] = task["id"]
-        status_line.success(f"任务完成，用时 {elapsed:.1f} 秒 · 任务号 `{task['id']}`")
-        badge_slot.markdown(theme.pill("已完成", "ok"), unsafe_allow_html=True)
-        token_box.empty()
-        services.audit_event(
-            "task",
-            "finish",
-            {
-                "task_id": task["id"],
-                "elapsed_s": round(elapsed, 1),
-                "report": task.get("report_path", ""),
-                "llm_status": task.get("llm_status", ""),
-            },
+    def apply_task_state(current: dict) -> set[str]:
+        steps = current.get("steps") or []
+        done_nodes = {step.get("node") for step in steps if step.get("node")}
+        active_node = steps[-1].get("node") if steps else None
+        refresh_stages(done_nodes, active=active_node)
+        logs_now = [str(line) for line in current.get("logs") or []]
+        log_box.code(
+            "\n".join(logs_now[-120:]) if logs_now else "（等待日志）", language="text"
         )
-    except Exception as exc:  # noqa: BLE001 - 前端兜底展示
+        stream_text = tasks.read_stream(task_id)
+        if stream_text:
+            token_box.markdown(stream_text)
+        progress.progress(
+            float(current.get("progress") or 0.0),
+            text=f"运行中：{active_node or '准备'} · 已用时 {time.perf_counter() - started:.1f}s",
+        )
+        status_line.markdown(
+            f"任务 `{task_id}` · 运行中：`{active_node or '准备'}` · "
+            f"已用时 **{time.perf_counter() - started:.1f}s**"
+        )
+        return done_nodes
+
+    # 任务在独立线程执行，页面只轮询状态；刷新/切页不会中断任务
+    if not executor.start(task_id):
+        st.error("已有任务正在执行，请稍后再试。")
+        _render_bottom(tasks.load_task(task_id))
+        return
+
+    done: set[str] = set()
+    while executor.is_running(task_id):
+        done = apply_task_state(tasks.load_task(task_id) or task)
+        time.sleep(0.4)
+
+    task = tasks.load_task(task_id) or task
+    done = apply_task_state(task)
+    refresh_stages(done)
+
+    if task.get("status") == tasks.STATUS_FAILED:
         progress.progress(1.0, text="任务失败")
-        status_line.error(f"任务失败：{type(exc).__name__}: {exc}")
+        status_line.error(f"任务失败：{task.get('error', '未知错误')}")
         badge_slot.markdown(theme.pill("失败", "danger"), unsafe_allow_html=True)
         services.audit_event(
             "task",
             "failed",
-            {"task_id": task["id"], "error": f"{type(exc).__name__}: {exc}"},
+            {"task_id": task_id, "error": task.get("error", "")},
         )
-        _render_bottom(tasks.load_task(task["id"]))
+        _render_bottom(task)
         return
 
+    if task.get("status") != tasks.STATUS_COMPLETED:
+        progress.progress(1.0, text="任务状态待确认")
+        status_line.warning("后台执行已结束，但任务状态不是完成，请到“任务队列”查看。")
+        badge_slot.markdown(theme.pill("待确认", "warn"), unsafe_allow_html=True)
+        _render_bottom(task)
+        return
+
+    elapsed = time.perf_counter() - started
+    st.session_state["last_task_id"] = task_id
+    progress.progress(1.0, text="任务完成")
+    status_line.success(f"任务完成，用时 {elapsed:.1f} 秒 · 任务号 `{task_id}`")
+    badge_slot.markdown(theme.pill("已完成", "ok"), unsafe_allow_html=True)
+    token_box.empty()
+    services.audit_event(
+        "task",
+        "finish",
+        {
+            "task_id": task_id,
+            "elapsed_s": round(elapsed, 1),
+            "report": task.get("report_path", ""),
+            "llm_status": task.get("llm_status", ""),
+        },
+    )
     _render_bottom(task)

@@ -77,7 +77,10 @@ streamlit run app.py
   <http://192.168.0.199:7474>（Bolt `bolt://192.168.0.199:7687`）；换机器时按
   [docs/runbook_manual_operation.md](docs/runbook_manual_operation.md) 的 2.1.1 节配置；
 - 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --all`
-  恢复干净环境（图谱、报告、任务、上传流水全部清空），由队员现场重新建图、生成报告；
+  恢复干净环境（图谱、报告、任务、上传流水、抽样/清洗产物全部清空；要保留抽样/清洗产物
+  加 `--keep-assets`），由队员现场重新生成数据、建图、生成报告；
+- **任务后台执行**：任务在独立线程运行，页面刷新、切换页面、关闭浏览器都不会中断；
+  平台重启或线程异常中断的“执行中”任务会在下次打开页面时自动标记为失败，不再永久卡住；
 - **数据接入**：真实一手数据不必上传——直接选 `data/new` 原始文件（几百 MB），自动识别
   编码（含 GBK/GB18030）、分隔符（逗号/分号/Tab/竖线）、表头与列名，支持“银行+账号”复合账号、
   多格式时间与 ￥/千分位金额；流式清洗后输出统一流水并建图。也内置 `data/samples/bank_flow_format_sample.csv`
@@ -92,12 +95,13 @@ streamlit run app.py
 
 ```text
 JingLianZhiXi_MultiAgent_FundTrace/
-├── app.py                       # 调度中枢入口（十页面导航）
+├── app.py                       # 调度中枢入口（十一页面导航）
 ├── workbench/
 │   ├── theme.py                 # 深色大屏样式与组件
 │   ├── services.py              # 节点状态、数据资产、报告索引、调度日志、指标计算
 │   ├── tasks.py                 # 任务队列/任务记录（runtime/tasks）
 │   ├── coordinator.py           # Supervisor 调度执行、调用记录、中间结果、追加指令
+│   ├── executor.py              # 后台任务执行器（页面刷新/切换不中断任务）
 │   ├── runner.py                # 流式编排器（阶段 + token 事件）
 │   ├── graph_view.py            # Plotly + NetworkX 资金网络图
 │   └── pages/                   # 页面：调度/数据资产/数据接入/图谱/操作台/指标/报告/节点等
