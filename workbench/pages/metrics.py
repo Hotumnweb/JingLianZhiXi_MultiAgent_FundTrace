@@ -85,7 +85,7 @@ def render() -> None:
                 result = None
 
         if not result:
-            st.info("点击上方按钮现场复算。")
+            st.info("点击上方按钮复算。")
         else:
             graph_result = result.get("graph") or {}
             if graph_result.get("transfers") and graph_result["transfers"] != 42175:

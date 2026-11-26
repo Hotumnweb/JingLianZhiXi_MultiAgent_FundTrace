@@ -143,7 +143,7 @@ def _render_detail(task: dict) -> None:
 
     report_path = task.get("report_path")
     if report_path and Path(report_path).exists():
-        theme.section("研判报告", "可用于复核与答辩")
+        theme.section("研判报告", "可用于复核与归档")
         report_text = services.read_text(Path(report_path))
         with st.container(border=True):
             st.markdown(report_text)

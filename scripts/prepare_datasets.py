@@ -308,8 +308,8 @@ def _prepare_ibm(key: str, rows: int = DEFAULT_ROWS, seed: int = DEFAULT_SEED) -
         "raw_rows": dataset.get("raw_rows"),
         "raw_normal_rows": normal_total,
         "raw_laundering_rows": laundering_count,
-        "sampling_method": "洗钱交易全保留 + 正常交易固定种子确定性抽样（演示用，比例非真实）",
-        "currency_note": "金额取 Amount Paid 原值，多币种未换算；仅用于结构规则演示",
+        "sampling_method": "洗钱交易全保留 + 正常交易固定种子确定性抽样",
+        "currency_note": "金额取 Amount Paid 原值，多币种未换算；用于结构规则分析",
         "laundering_currency_top": sorted(currency_counter.items(), key=lambda kv: kv[1], reverse=True)[:5],
         "patterns": _parse_patterns(pattern_path) if pattern_path else {"available": False},
         "flow_file": str(flow_path.relative_to(BASE_DIR)).replace("\\", "/"),
@@ -471,9 +471,8 @@ def _prepare_paysim(rows: int = PAYSIM_DEFAULT_ROWS, seed: int = DEFAULT_SEED) -
         "fraud_types": sorted(type_counter.items(), key=lambda kv: kv[1], reverse=True),
         "sampling_method": (
             "诈骗交易全保留 + 诈骗账户关联交易（补全资金链）+ 正常交易固定种子确定性抽样"
-            "（演示用，比例非真实）"
         ),
-        "time_note": "step 为小时序号，映射到 2017-01-01 起算的时间；仅用于时间窗口规则演示",
+        "time_note": "step 为小时序号，映射到 2017-01-01 起算的时间；用于时间窗口规则分析",
         "flow_file": str(flow_path.relative_to(BASE_DIR)).replace("\\", "/"),
         "labels_file": str(labels_path.relative_to(BASE_DIR)).replace("\\", "/"),
         "elapsed_s": elapsed,

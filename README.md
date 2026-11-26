@@ -38,7 +38,7 @@ Neo4j 承担。比赛现场可换成固定内网，只改 `.env`。
 | 元智能体调度 | 固定 Supervisor 流水线：任务下发、提交队列/立即执行、阶段卡实时点亮、调度日志滚动、AI 报告逐 token 输出 |
 | 元智能体自主分析 | Qwen3.5 工具调用实验台：模型自主选择归集/快进快出/资金往来/规则指标工具，Node1/Node3 执行并回传，展示决策轨迹 |
 | 任务队列 | 任务排队/执行状态、子智能体调用记录、中间结果汇总、任务详情与重跑 |
-| 数据资产 | data/new 大数据集目录、确定性抽样生成、样本预览、规则评测与赛场演示路线 |
+| 数据资产 | data/new 数据集目录、确定性抽样生成、样本预览与规则评测 |
 | 数据接入 | 真实混乱数据接入：自动识编码/分隔符/列名、字段映射、复合账号、流式清洗、pandas 分析台 |
 | 图数据与工具 | Node3 Neo4j 子图、环形链/归集明细、证据强度排行、Neo4j 复核查询 |
 | Neo4j 操作台 | 现场执行只读 Cypher：图谱规模、Top 入度、快进快出、账户资金往来、约束与索引 |
@@ -65,7 +65,7 @@ streamlit run app.py
 生成研判报告耗时 **28.65 秒（34.53 tok/s）**，全链路 **71.9 秒**。
 **元智能体工具调用实测**：Qwen3.5 自主调用归集查询 + 快进快出查询，2 轮完成，约 16 秒。
 
-## 3. 当前状态与演示数据
+## 3. 当前状态与数据资产
 
 - 第二台 GPU 节点：**已接入**，IP `192.168.0.200`，模型 `qwen3.5-9b-tools:q4km`，
   必须 `LLM_THINK=false`；详细说明见 [docs/NETWORK_NODE2.md](docs/NETWORK_NODE2.md)；
@@ -80,8 +80,8 @@ streamlit run app.py
   恢复干净环境（图谱、报告、任务、上传流水全部清空），由队员现场重新建图、生成报告；
 - **数据接入**：真实一手数据不必上传——直接选 `data/new` 原始文件（几百 MB），自动识别
   编码（含 GBK/GB18030）、分隔符（逗号/分号/Tab/竖线）、表头与列名，支持“银行+账号”复合账号、
-  多格式时间与 ￥/千分位金额；流式清洗后输出统一流水并建图。也内置 `data/samples/messy_bank_flow.csv`
-  脏数据样例（GBK、分号、￥、混合日期、空账号、自转账、重复行）用于现场演示；
+  多格式时间与 ￥/千分位金额；流式清洗后输出统一流水并建图。也内置 `data/samples/bank_flow_format_sample.csv`
+  格式样例（GBK、分号、￥、混合日期、空账号、自转账、重复行）用于格式适配验证；
   详见 [docs/DATA_CLEANING_GUIDE.md](docs/DATA_CLEANING_GUIDE.md)；
 - **数据资产**：`data/new/` 已落地 5 套公开大数据集（IBM AML HI/LI、PaySim、Elliptic、
   IEEE-CIS，约 2.5 GB，git 忽略），由 `scripts/prepare_datasets.py` 生成确定性抽样到
@@ -132,7 +132,7 @@ JingLianZhiXi_MultiAgent_FundTrace/
 │   └── second_node_setup.md     # 第二台 GPU 节点部署手册
 ├── data/
 │   ├── sample_flow.csv          # 100 条演示数据
-│   ├── samples/                 # 演示脏数据（GBK/分号/￥/混合日期等）
+│   ├── samples/                 # 格式样例（GBK/分号/￥/混合日期等）
 │   ├── synthetic_aml/           # 合成 AML 数据集（CC0）
 │   ├── new/                     # 5 套公开大数据集原始文件（约 2.5 GB，git 忽略）
 │   ├── prepared/                # 抽样样本（生成物，git 忽略）
@@ -143,7 +143,7 @@ JingLianZhiXi_MultiAgent_FundTrace/
 
 ## 5. 数据说明与合规
 
-内置演示数据：
+内置数据：
 
 - `data/synthetic_aml/transactions.csv`：42,175 条交易，金额单位 USD；
 - 3,500 个账户，132 个洗钱账户；22 个团伙（12 环形 + 10 集散式）；
@@ -175,7 +175,7 @@ python scripts/evaluate_prepared.py --dataset ibm-hi-small   # 建图后复算�
 
 ```powershell
 python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000
-python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output messy_demo
+python scripts/clean_data.py --input data/samples/bank_flow_format_sample.csv --output format_sample_clean
 ```
 
 详见 [docs/DATA_CLEANING_GUIDE.md](docs/DATA_CLEANING_GUIDE.md)；平台“数据接入”页提供同样的
@@ -210,7 +210,7 @@ python scripts/evaluate_on_synthetic_aml.py   # 规则评测
 python scripts/prepare_datasets.py --all      # 生成 data/new 大数据集抽样（约 45 秒）
 python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000
 python scripts/evaluate_prepared.py --dataset ibm-hi-small   # 抽样样本指标复算
-python scripts/reset_demo_data.py --all       # 清空图谱/报告/任务/上传流水
+python scripts/reset_demo_data.py --all       # 清空图谱/报告/任务/上传/抽样/清洗产物
 ```
 
 ## 8. Node2 接入（当前已接入）
@@ -274,14 +274,14 @@ python scripts/check_llm.py
 
 | 现象 | 原因 / 解决 |
 | :--- | :--- |
-| 平台页面为空 | 演示数据已清理；在“元智能体调度”下发任务即可重建 |
+| 平台页面为空 | 运行数据已清理；在“元智能体调度”下发任务即可重建 |
 | Node2 显示离线 | 检查第二台 Ollama 是否监听 0.0.0.0:11434、防火墙/网络是否变化；跑 `python scripts/connect_node2.py` |
 | Node3 显示离线 | Neo4j 未启动，或 `.env` 的 `NEO4J_HOST` / `NEO4J_PORT` 与实际监听不一致；启动 Neo4j 后跑 `python scripts/check_neo4j.py` 验证 |
 | 第二台打不开 Neo4j Browser | Neo4j 需 `server.default_listen_address=0.0.0.0` 并重启；第一台管理员运行 `scripts/open_node1_ports.ps1` 放行 7474/7687 |
 | AI 报告很慢 | 第二台 GPU 当前约 30 秒；若回退到本机 CPU 调试约 2~4 分钟 |
 | 上传大文件失败 | 几百 MB 原始数据不要上传：直接放到 `data/` 下，在“数据接入”页选“服务器文件”；上传限制已放宽到 1 GB（改 `.streamlit/config.toml` 后需重启平台） |
 | 数据格式不识别/列名对不上 | 在“数据接入”页手工修正编码/分隔符/表头，并手工选择时间/金额/付款/收款列；复合账号可多选两列 |
-| 清洗后建图没有可疑账户 | 检查时间范围/账号映射是否正确；内置演示或 `data/prepared` 抽样更适合快速演示规则命中 |
+| 清洗后建图没有可疑账户 | 检查时间范围/账号映射是否正确；内置数据或 `data/prepared` 抽样更适合快速验证规则命中 |
 | 报告 content 为空 | Qwen3.5 必须 `LLM_THINK=false`（`connect_node2.py` 会自动写入） |
 | 报告状态 fallback | AI 不可达，自动降级为规则模板报告 |
-| 需要重置演示环境 | `python scripts/reset_demo_data.py --all`（清理后刷新页面） |
+| 需要重置运行环境 | `python scripts/reset_demo_data.py --all`（清空抽样/清洗产物；保留产物加 `--keep-assets`） |

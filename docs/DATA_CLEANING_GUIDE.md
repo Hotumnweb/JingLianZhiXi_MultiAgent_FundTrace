@@ -45,8 +45,8 @@ python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 1000
 # 均匀抽样（跨全时段，约 30 秒）
 python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000 --uniform
 
-# 演示脏数据（GBK + 分号 + ￥金额 + 混合日期 + 空账号 + 自转账 + 重复行）
-python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output messy_demo
+# 格式样例（GBK + 分号 + ￥金额 + 混合日期 + 空账号 + 自转账 + 重复行）
+python scripts/clean_data.py --input data/samples/bank_flow_format_sample.csv --output format_sample_clean
 ```
 
 输出统一写入 `data/cleaned/`（git 忽略，可复现）；原始文件只读。
@@ -60,7 +60,7 @@ python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output m
 | `data/new/one/HI-Small_Trans.csv`（IBM AML） | 453.6 MB / 507.8 万行 | utf-8-sig、逗号、11 列、有表头 | 前 10 万行，剔自转账 | 10 万行 / 9.8 万账号；时间 2022-09-01~09-06 | 1.7 秒 |
 | 同上 | 同上 | 同上 | 均匀抽样 10 万行（扫描全量） | 8.97 万行 / 11.4 万账号；时间 09-01~09-17 | 34 秒 |
 | `data/new/paysim1/...log.csv`（PaySim） | 470.7 MB / 636.3 万行 | utf-8-sig、逗号、11 列 | 前 10 万行，step 按小时映射 | 10 万行 / 15.2 万账号 | 1.1 秒 |
-| `data/samples/messy_bank_flow.csv`（演示脏数据） | 18 KB / 303 行 | **gb18030、分号**、5 列 | 全部清洗 | 284 行（剔除：空账号 5、自转账 11、重复 2） | 0.1 秒 |
+| `data/samples/bank_flow_format_sample.csv`（格式样例） | 18 KB / 303 行 | **gb18030、分号**、5 列 | 全部清洗 | 284 行（剔除：空账号 5、自转账 11、重复 2） | 0.1 秒 |
 
 清洗后直接建图：
 

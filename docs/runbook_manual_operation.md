@@ -201,14 +201,14 @@ python scripts/prepare_datasets.py --dataset ibm-hi-small
 3. 平台自动识别：编码 utf-8-sig、逗号分隔、11 列、有表头；“银行号+账号”自动拼成复合账号；
 4. 点“预览清洗结果”确认映射 → “执行清洗”（默认 10 万行，约 2 秒）；
 5. 清洗完成点“在调度页用这份数据建图” → 跑规则 → 生成报告；
-6. 想演示“格式混乱”时，选 `data/samples/messy_bank_flow.csv`：
+6. 想演示“格式混乱”时，选 `data/samples/bank_flow_format_sample.csv`：
    GBK 编码 + 分号分隔 + ￥金额 + 混合日期 + 空账号 + 自转账 + 重复行，清洗后剔除原因全部可查。
 
 命令行等价（赛前预跑）：
 
 ```powershell
 python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000
-python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output messy_demo
+python scripts/clean_data.py --input data/samples/bank_flow_format_sample.csv --output format_sample_clean
 ```
 
 - 清洗产物在 `data/cleaned/`（git 忽略），每次生成 `_stats.json` 清洗报告；

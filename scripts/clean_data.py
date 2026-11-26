@@ -12,8 +12,8 @@
     python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000 --uniform
 
     # 自定义编码/分隔符/输出名
-    python scripts/clean_data.py --input data/samples/messy_bank_flow.csv \
-        --encoding gb18030 --delimiter ";" --output messy_demo
+    python scripts/clean_data.py --input data/samples/bank_flow_format_sample.csv \
+        --encoding gb18030 --delimiter ";" --output format_sample_clean
 
 输出：data/cleaned/<name>.csv 与 <name>_stats.json（原始文件只读）。
 """

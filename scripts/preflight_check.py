@@ -60,10 +60,10 @@ def check_data() -> None:
 
 
 def check_data_assets() -> None:
-    """检查大数据抽样、清洗产物、演示脏数据与原始数据集。"""
+    """检查大数据抽样、清洗产物、格式样例与原始数据集。"""
     prepared = list(PREPARED_DIR.glob("*_flow.csv")) if PREPARED_DIR.exists() else []
     cleaned = list(CLEANED_DIR.glob("*.csv")) if CLEANED_DIR.exists() else []
-    messy = BASE_DIR / "data" / "samples" / "messy_bank_flow.csv"
+    messy = BASE_DIR / "data" / "samples" / "bank_flow_format_sample.csv"
     raw_ibm = RAW_DIR / "one" / "HI-Small_Trans.csv"
     raw_paysim = RAW_DIR / "paysim1" / "PS_20174392719_1491204439457_log.csv"
 
@@ -71,20 +71,20 @@ def check_data_assets() -> None:
         "数据资产抽样",
         bool(prepared),
         f"data/prepared 抽样 {len(prepared)} 个"
-        + ("" if prepared else "；请运行 python scripts/prepare_datasets.py --all"),
+        + ("" if prepared else "；现场可在“数据资产”页生成"),
         critical=False,
     )
     record(
         "清洗产物",
         bool(cleaned),
         f"data/cleaned 清洗数据 {len(cleaned)} 个"
-        + ("" if cleaned else "；可在“数据接入”页清洗或运行 scripts/clean_data.py"),
+        + ("" if cleaned else "；现场可在“数据接入”页清洗生成"),
         critical=False,
     )
     record(
-        "演示脏数据",
+        "格式样例",
         messy.exists(),
-        "data/samples/messy_bank_flow.csv 可用" if messy.exists() else "缺少脏数据样例",
+        "data/samples/bank_flow_format_sample.csv 可用" if messy.exists() else "缺少脏数据样例",
         critical=False,
     )
     record(

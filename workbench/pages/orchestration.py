@@ -239,11 +239,6 @@ def _source_detail(source: dict) -> None:
         theme.pill(label_text, label_tone),
     ]
     st.markdown(" ".join(chips), unsafe_allow_html=True)
-    if meta:
-        st.caption(
-            f"抽样方式：{meta.get('sampling_method', '—')}；"
-            f"生成时间：{meta.get('generated_at', '—')}"
-        )
 
 
 def _render_bottom(last_task: dict | None) -> None:
@@ -271,10 +266,10 @@ def _render_bottom(last_task: dict | None) -> None:
             **调用链**：Node1 调度中心（本页）→ Node3 工具与图数据（pandas 解析 + Neo4j 建图 + 三条图规则）
             → Node2 GPU 算力中心（Ollama 生成研判报告）→ 结果回传 Node1 归档。
 
-            **数据源**：内置演示数据直接可用；`data/new` 大数据集需在“数据资产”页生成抽样后，
-            在“流水数据源”下拉中选择“大数据抽样”；上传的 CSV 会保存到 `data/imports/`。
+            **数据源**：内置数据可直接使用；`data/new` 大数据集可在“数据资产”页生成抽样、
+            或在“数据接入”页清洗后使用，再在“流水数据源”下拉中选择；上传的 CSV 会保存到 `data/imports/`。
 
-            **演示建议**：先跑内置 42,175 笔数据（约 10 秒）→ 再切 IBM HI-Small 抽样展示真实规模。
+            **使用建议**：先用内置数据建立基线，再切换抽样/清洗数据验证不同规模。
             """
         )
 
@@ -334,7 +329,7 @@ def render() -> None:
     with left:
         with st.container(border=True):
             st.subheader("① 选择数据资产")
-            st.caption("内置演示直接可用；“大数据抽样”需先到“数据资产”页生成。")
+            st.caption("内置数据可直接使用；“大数据抽样”需先到“数据资产”页生成。")
             if source_paths:
                 flow_file = st.selectbox(
                     "流水数据源",
@@ -422,7 +417,7 @@ def render() -> None:
             enable_report = st.toggle(
                 "执行 AI 研判报告",
                 value=report_agent_enabled(),
-                help="关闭后只执行图工具分析（更快，适合现场先看图谱）。",
+                help="关闭后只执行图工具分析（更快，适合先看图谱）。",
             )
             with st.expander("任务口径说明", expanded=False):
                 st.markdown(_RULE_NOTE)

@@ -51,10 +51,11 @@ def ensure_dirs() -> None:
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def reset_demo_data(clear_imports: bool = True) -> dict:
-    """清空图谱、报告、任务队列；可选清空上传流水。
+def reset_demo_data(clear_imports: bool = True, clear_assets: bool = True) -> dict:
+    """清空图谱、报告、任务队列、上传流水，以及抽样/清洗生成物。
 
-    只清运行时数据，不删除 data/synthetic_aml 和 data/sample_flow.csv 这类内置测试数据。
+    只清运行时与生成数据，不删除 data/new、data/synthetic_aml、data/samples 这类原始数据。
+    clear_assets=False 时保留 data/prepared 与 data/cleaned（作为现场兜底）。
     返回实际清理结果，供页面/命令输出使用。
     """
     result = {
@@ -64,6 +65,8 @@ def reset_demo_data(clear_imports: bool = True) -> dict:
         "reports_cleared": False,
         "runtime_cleared": False,
         "imports_cleared": False,
+        "assets_cleared": False,
+        "assets_removed": {"prepared": 0, "cleaned": 0},
         "error": "",
     }
     try:
@@ -92,6 +95,22 @@ def reset_demo_data(clear_imports: bool = True) -> dict:
             result[key] = True
         except Exception as exc:  # noqa: BLE001
             result["error"] = (result["error"] + "；" if result["error"] else "") + f"{path.name}: {exc}"
+
+    if clear_assets:
+        for name, path in (
+            ("prepared", DATA_DIR / "prepared"),
+            ("cleaned", DATA_DIR / "cleaned"),
+        ):
+            try:
+                if path.exists():
+                    shutil.rmtree(path)
+                result["assets_removed"][name] = 1
+            except Exception as exc:  # noqa: BLE001
+                result["error"] = (
+                    (result["error"] + "；" if result["error"] else "")
+                    + f"{path.name}: {exc}"
+                )
+        result["assets_cleared"] = True
 
     ensure_dirs()
     if clear_imports:
@@ -534,7 +553,7 @@ def prepared_overview(key: str) -> dict:
 # ----------------------------------------------------------------------------
 _DATA_GROUP_LABELS = {
     "new": "原始大数据集",
-    "samples": "演示脏数据",
+    "samples": "格式样例",
     "imports": "已上传",
     "cleaned": "已清洗",
     "prepared": "抽样数据",
@@ -542,11 +561,27 @@ _DATA_GROUP_LABELS = {
 }
 _DATA_GROUP_ORDER = ["samples", "new", "imports", "cleaned", "prepared", "synthetic_aml", ""]
 
+# 清洗页只关注“可清洗的流水类文件”，过滤标签/元数据/图数据文件，避免列表杂乱
+_EXCLUDED_FILE_NAMES = {
+    "accounts.csv",
+    "patterns.txt",
+    "sample_submission.csv",
+    "identity.csv",
+    "classes.csv",
+    "features.csv",
+    "edgelist.csv",
+    "laundering_rings.csv",
+    "manifest.json",
+    "data_dictionary.json",
+}
+_EXCLUDED_DIR_PARTS = {"ieee-fraud", "elliptic"}
+
 
 def data_file_catalog() -> list[dict]:
-    """扫描 data/ 下可接入的文件（CSV/TSV/TXT/Excel），带分组与大小。
+    """扫描 data/ 下可接入的流水类文件（CSV/TSV/TXT/Excel），带分组与大小。
 
-    只列文件、不读内容：几百 MB 的原始数据也能秒级列出。
+    只列文件、不读内容：几百 MB 的原始数据也能秒级列出；
+    标签表、身份表、图数据边表等元数据文件不进入清洗选择列表。
     """
     from tools.data_cleaning import READABLE_EXTENSIONS
 
@@ -560,8 +595,19 @@ def data_file_catalog() -> list[dict]:
             rel = path.relative_to(PROJECT_ROOT).as_posix()
         except ValueError:
             continue
-        parts = rel.split("/")
-        group_key = parts[1] if len(parts) > 1 and parts[0] == "data" else ""
+        parts = set(rel.split("/"))
+        if parts & _EXCLUDED_DIR_PARTS:
+            continue
+        lower_name = path.name.lower()
+        if lower_name.startswith("_"):
+            continue
+        if lower_name.endswith(("_accounts.csv", "_patterns.txt")):
+            continue
+        if any(tag in lower_name for tag in ("identity", "sample_submission")):
+            continue
+        if lower_name in _EXCLUDED_FILE_NAMES:
+            continue
+        group_key = rel.split("/")[1] if rel.startswith("data/") else ""
         size_mb = round(path.stat().st_size / 1024 / 1024, 2)
         items.append(
             {
@@ -680,7 +726,7 @@ def run_pandas_expression(path: str, expression: str, limit: int = 20_000):
 
 
 def flow_source_groups() -> list[dict]:
-    """调度页数据源分组：内置演示 / 大数据抽样 / 已上传。"""
+    """调度页数据源分组：内置数据 / 大数据抽样 / 已清洗数据 / 已上传。"""
     groups: list[dict] = []
 
     demo_items: list[dict] = []
@@ -690,7 +736,7 @@ def flow_source_groups() -> list[dict]:
             {
                 "path": aml_path,
                 "label": "合成 AML 数据集 · 42,175 笔（内置）",
-                "group": "内置演示",
+                "group": "内置数据",
                 "rows": 42175,
                 "kind": "demo",
                 "dataset_key": "demo-aml",
@@ -701,15 +747,15 @@ def flow_source_groups() -> list[dict]:
         demo_items.append(
             {
                 "path": sample_path,
-                "label": "中文演示流水 · 100 笔（内置）",
-                "group": "内置演示",
+                "label": "中文流水样例 · 100 笔（内置）",
+                "group": "内置数据",
                 "rows": 100,
                 "kind": "demo",
                 "dataset_key": "demo-sample",
             }
         )
     if demo_items:
-        groups.append({"group": "内置演示", "items": demo_items})
+        groups.append({"group": "内置数据", "items": demo_items})
 
     prepared_items = _prepared_group_items()
     if prepared_items:
@@ -1258,7 +1304,7 @@ def read_audit(limit: int = 80) -> list[dict]:
 
 
 # ----------------------------------------------------------------------------
-# 评测指标（按需计算，答辩时现场点“重新评测”）
+# 评测指标（按需计算，点击“重新计算检测指标”触发）
 # ----------------------------------------------------------------------------
 def compute_metrics() -> dict:
     """在 AML 数据集上复算三条规则与标签的精确率/召回率。"""

@@ -92,29 +92,44 @@ python scripts/preflight_check.py
 
 必须全为 `OK`/`WARN`（`Neo4j 数据 WARN=图谱为空`属正常，演示任务会建图）；
 出现 `FAIL` 先处理再开场。自检项包括：依赖、内置数据、数据资产抽样、清洗产物、
-演示脏数据、原始大数据、平台端口、Neo4j、Ollama、报告开关。
+格式样例、原始大数据、平台端口、Neo4j、Ollama、报告开关。
 
-### 1.3 赛前数据准备（T-1 天或赛前 30 分钟）
+### 1.3 数据准备：优先“现场生成”，预生成仅作兜底
+
+**模式 A（推荐，符合“能在现场弄得就现场弄”）：不预生成，现场做。**
 
 ```powershell
-# 1) 清理上一次演示痕迹：图谱、报告、任务队列、上传流水（保留 data/new、data/prepared、data/cleaned）
+# 1) 恢复干净环境：图谱/报告/任务/上传流水/抽样/清洗产物 全部清空
 python scripts/reset_demo_data.py --all
 
-# 2) 生成大数据抽样（准备“数据资产”页的 IBM HI/LI、PaySim、Elliptic）
+# 2) 自检（图谱为空、没有抽样/清洗产物 属预期）
+python scripts/preflight_check.py
+```
+
+现场流程中再生成：
+- “数据资产”页对 IBM HI-Small 点“生成/刷新抽样”（约 16 秒，当前图谱需要它做指标复算）；
+- “数据接入”页现场清洗 `data/new/one/HI-Small_Trans.csv` 5 万行（约 1 秒）；
+- 每个任务执行时自动建图；不需要提前准备任何结果。
+
+**模式 B（保险，作为兜底）：赛前预生成，但重置时保留。**
+
+```powershell
+# 1) 先清理运行痕迹，保留已有抽样/清洗产物（--keep-assets）
+python scripts/reset_demo_data.py --all --keep-assets
+
+# 2) 如没有产物，先生成一次作为兜底
 python scripts/prepare_datasets.py --all
-
-# 3) 预生成清洗样例（现场也可现场清洗，这里保证有兜底）
 python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 50000 --output ibm_hi_clean_50k
-python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output messy_demo
 
-# 4) 再跑一次自检
+# 3) 自检
 python scripts/preflight_check.py
 ```
 
 说明：
-- `reset_demo_data.py --all` 不会删除 `data/prepared/`、`data/cleaned/`，只清图谱/报告/任务/上传；
-- 现场演示建议清洗 5 万行（1–2 秒）；全量 508 万行赛后跑；
-- 若不想现场清洗，`data/cleaned/` 里已有预生成结果，可直接在调度页“已清洗数据”分组选中。
+- `reset_demo_data.py --all` **会清理** `data/prepared/`、`data/cleaned/` 生成物；
+  想保留它们做兜底时加 `--keep-assets`；
+- 原始数据（`data/new`、`data/samples`、`data/synthetic_aml`）不会被删除；
+- 现场生成 IBM HI 抽样约 16 秒、清洗 5 万行约 1 秒，讲解时正好覆盖等待时间。
 
 ### 1.4 赛前 10 分钟检查清单
 
@@ -123,8 +138,9 @@ python scripts/preflight_check.py
 - [ ] `python scripts/check_llm.py` 显示模型在线、能回复；
 - [ ] `python scripts/preflight_check.py` 无 FAIL；
 - [ ] 平台 8501 已启动，本机与第二台浏览器都能打开；
-- [ ] “数据资产”页能看到 IBM HI-Small 显示“已生成抽样”；
-- [ ] “数据接入”页能看到 `data/new` 原始文件和 `data/samples/messy_bank_flow.csv`；
+- [ ] 现场生成模式：数据资产页有“生成/刷新抽样”按钮即可（无需预生成）；
+      预生成兜底模式：IBM HI-Small 显示“已生成抽样”；
+- [ ] “数据接入”页能看到 `data/new` 原始文件和 `data/samples/bank_flow_format_sample.csv`；
 - [ ] 浏览器缩放 100%、关闭通知、清理无关标签；
 - [ ] 演示前如需干净环境：执行 `python scripts/reset_demo_data.py --all` 后按 F5 刷新平台。
 
@@ -156,7 +172,7 @@ python scripts/preflight_check.py
 **操作（Node1 操作员按顺序点）**：
 
 1. 左侧导航点“**元智能体调度**”；
-2. “流水数据源”选默认的“内置演示｜合成 AML 数据集 · 42,175 笔（内置）”；
+2. “流水数据源”选默认的“内置数据｜合成 AML 数据集 · 42,175 笔（内置）”；
 3. 点“**加载目标数据**”，出现成功提示“目标已加载：42,175 条 · AML 标准格式”；
    （可展开“数据预览（前 8 行）”快速展示列结构）
 4. “指令模板”选“**全量资金穿透分析**”（自动填入描述），也可保留默认描述；
@@ -201,12 +217,16 @@ python scripts/preflight_check.py
 **操作**：
 
 1. 左侧导航“**数据资产**”；
-2. 找到“IBM AML · HI-Small”卡片（显示“已生成抽样 · 44,769 笔”），点“**在调度页使用**”；
-3. 自动跳到调度页且数据源已选中“大数据抽样｜IBM AML · HI-Small · 抽样 44,769 笔”；
-4. 点“**加载目标数据**” → 显示 44,769 条、通用中文流水；
-5. **关闭**“执行 AI 研判报告”，点“**仅执行图工具分析**”（约 6–10 秒）；
-6. 结果：可疑账户 **65**（归集 5、环形链 5、快进快出 50）；
-7. 回“数据资产”页，在“抽样样本规则评测”里确认数据集为 IBM HI-Small，点“**复算规则指标**”：
+2. 找到“IBM AML · HI-Small”卡片：
+   - **现场生成模式**：点“生成/刷新抽样”，约 16 秒完成（讲解等待时间：抽样保留全部标签交易、
+     正常交易固定种子抽样）；
+   - **预生成兜底模式**：直接显示“已生成抽样 · 44,769 笔”；
+3. 点卡片上的“**在调度页使用**”；
+4. 自动跳到调度页且数据源已选中“大数据抽样｜IBM AML · HI-Small · 抽样 44,769 笔”；
+5. 点“**加载目标数据**” → 显示 44,769 条、通用中文流水；
+6. **关闭**“执行 AI 研判报告”，点“**仅执行图工具分析**”（约 6–10 秒）；
+7. 结果：可疑账户 **65**（归集 5、环形链 5、快进快出 50）；
+8. 回“数据资产”页，在“抽样样本规则评测”里确认数据集为 IBM HI-Small，点“**复算规则指标**”：
    - 强证据精确率 **1.000**、最终清单精确率 **0.600**；
    - **IBM 官方 8 类洗钱模式覆盖 8/8**（FAN-IN/FAN-OUT/CYCLE/BIPARTITE/STACK/RANDOM/
      GATHER-SCATTER/SCATTER-GATHER 均有账户命中）。
@@ -227,7 +247,7 @@ python scripts/preflight_check.py
 **A. 先展示“格式混乱”（约 20 秒）**
 
 1. 左侧导航“**数据接入**”；
-2. “服务器数据文件”选“演示脏数据｜messy_bank_flow.csv（0.02 MB）”；
+2. “服务器数据文件”选“格式样例｜bank_flow_format_sample.csv（0.02 MB）”；
 3. 画面自动识别：**gb18030 编码、分号分隔、5 列、有表头**；字段映射自动填好；
 4. 点“**预览清洗结果（前 200 行）**”：读取 200 行、有效 189 行，剔除空账号/自转账；
 5. 讲：“真实流水可能是 GBK、分号、金额带 ￥、日期格式混用，平台自动识别并清洗。”
@@ -379,7 +399,7 @@ python scripts/preflight_check.py
 | 平台 8501 被占用 | `streamlit run app.py --server.port 8502`，浏览器切到 8502 | 现场切换即可 |
 | 页面报错/白屏 | F5 刷新；仍异常看 `logs/streamlit.err.log`，重启平台 | 重启后数据不丢（落盘） |
 | 数据源列表缺抽样 | 跑 `python scripts/prepare_datasets.py --all` | 用内置数据继续演示 |
-| 大文件清洗卡顿 | 行数上限改“1 万行”，或换“演示脏数据”小文件 | “全量赛后跑，现场保节奏” |
+| 大文件清洗卡顿 | 行数上限改“1 万行”，或换“格式样例”小文件 | “全量赛后跑，现场保节奏” |
 | 断网自检显示可上网 | 检查是否连了外网/WiFi；说明演示要求物理断网 | “内网闭环，数据不出局” |
 | 时间不够 | 立即切 5 分钟精简版 | 先保证主线：内置任务 + 规则指标 + 数据接入 |
 
@@ -439,7 +459,7 @@ python scripts/preflight_check.py
 # 数据准备
 python scripts/prepare_datasets.py --all
 python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 50000
-python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output messy_demo
+python scripts/clean_data.py --input data/samples/bank_flow_format_sample.csv --output format_sample_clean
 
 # 命令行跑一次完整链路（含 AI 报告）/ 只跑图
 python main.py

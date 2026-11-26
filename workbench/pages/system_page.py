@@ -83,9 +83,9 @@ def render() -> None:
             result = services.external_network_check()
             services.audit_event("network_check", f"target={result['target']}", result)
             if result["online"]:
-                st.warning("当前仍可访问外网；现场演示前请断开外网后重试。")
+                st.warning("当前仍可访问外网，请断开外网后重试。")
             else:
-                st.success("外网不可达，符合内网演示要求。")
+                st.success("外网不可达，符合内网运行要求。")
 
     with right:
         theme.section("接口与工具清单", "Node1 统一调度，Node2/Node3 提供能力")
@@ -144,7 +144,7 @@ def render() -> None:
     else:
         st.info("暂无调度日志。下发一次任务或执行外网检测后会自动记录。")
 
-    with st.expander("赛前检查清单", expanded=False):
+    with st.expander("运行检查清单", expanded=False):
         checklist = [
             ("Node1 调度中心", "平台正常打开、任务可下发"),
             ("Node2 算力节点", "Ollama 在线、模型已加载、11434 可达"),
@@ -158,30 +158,30 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
 
-    with st.expander("演示数据清理", expanded=False):
+    with st.expander("数据清理", expanded=False):
         st.caption(
-            "清空 Neo4j 图谱、reports/、runtime/tasks/ 和 data/imports/；"
-            "保留 data/synthetic_aml 与 data/sample_flow.csv 这类内置测试数据。"
+            "清空 Neo4j 图谱、reports/、runtime/tasks/、data/imports/，以及 data/prepared/、"
+            "data/cleaned/ 下的抽样与清洗产物；保留 data/new、data/samples 等原始数据。"
         )
         confirmed = st.checkbox(
-            "我确认清空当前图谱、任务记录、报告和已上传流水",
+            "我确认清空当前图谱、任务记录、报告、已上传流水与抽样/清洗产物",
             key="confirm_reset_demo",
         )
         if st.button(
-            "清空全部演示数据",
+            "清空全部运行数据",
             type="secondary",
             disabled=not confirmed,
             width="stretch",
         ):
-            result = services.reset_demo_data(clear_imports=True)
+            result = services.reset_demo_data(clear_imports=True, clear_assets=True)
             if result.get("error"):
                 st.warning(f"清理未完全成功：{result['error']}")
             else:
                 before = result.get("graph_before") or {}
                 after = result.get("graph_after") or {}
                 st.session_state["_reset_notice"] = (
-                    f"已清空演示数据：图谱 {before.get('accounts', 0)}/"
+                    f"已清空运行数据：图谱 {before.get('accounts', 0)}/"
                     f"{before.get('transfers', 0)} → {after.get('accounts', 0)}/"
-                    f"{after.get('transfers', 0)}；报告、任务和上传流水已删除。"
+                    f"{after.get('transfers', 0)}；报告、任务、上传流水与抽样/清洗产物已删除。"
                 )
                 st.rerun()

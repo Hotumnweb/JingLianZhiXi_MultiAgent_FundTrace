@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
-"""数据资产页：data/new 大数据集目录、确定性抽样、样本评测与赛场展示路线。
-
-页面只做三件事：
-1. 让操作员看清 data/new 里有什么、每套数据在赛场怎么用；
-2. 一键生成“可现场建图”的抽样样本（data/prepared）；
-3. 在已建好的抽样图谱上复算规则指标（标签只用于事后评测）。
-"""
+"""数据资产页：data/new 原始数据集目录、确定性抽样、样本预览与规则评测。"""
 
 from __future__ import annotations
 
@@ -83,10 +77,9 @@ def _generate_all(catalog: list[dict]) -> None:
 
 
 def _render_catalog(catalog: list[dict]) -> None:
-    theme.section("数据集目录", "data/new 原始数据 · 标签/许可/推荐用途")
-    top = st.columns([3, 1, 1])
-    top[1].caption("原始数据不进前端扫描，平台只消费抽样文件")
-    if top[2].button("一键生成全部抽样", width="stretch"):
+    theme.section("数据集目录", "数据源 · 规模 · 标签 · 抽样状态")
+    top = st.columns([3, 1])
+    if top[1].button("一键生成全部抽样", width="stretch"):
         _generate_all(catalog)
 
     columns = st.columns(2)
@@ -128,8 +121,6 @@ def _render_catalog(catalog: list[dict]) -> None:
                         _goto_orchestration(dataset["primary_file"])
                 if status.get("generated_at"):
                     st.caption(f"抽样生成时间：{status['generated_at']}")
-                elif dataset.get("prepared"):
-                    st.caption("尚未生成抽样：点“生成/刷新抽样”后即可现场建图。")
 
 
 def _render_preview(catalog: list[dict]) -> None:
@@ -139,7 +130,6 @@ def _render_preview(catalog: list[dict]) -> None:
         if row["kind"] == "flow" and (row.get("prepared_status") or {}).get("ready")
     ]
     if not ready_rows:
-        st.info("还没有可预览的抽样数据：先在上方数据集卡片点“生成/刷新抽样”。")
         return
 
     labels = {
@@ -194,7 +184,6 @@ def _render_evaluation(catalog: list[dict]) -> None:
         if row["kind"] == "flow" and (row.get("prepared_status") or {}).get("ready")
     ]
     if not ready_rows:
-        st.info("暂无抽样样本，无法评测。")
         return
 
     labels = {row["key"]: row["name"] for row in ready_rows}
@@ -290,8 +279,8 @@ def _render_evaluation(catalog: list[dict]) -> None:
             hide_index=True,
         )
     st.caption(
-        "说明：演示抽样保留了全部标签交易，真实洗钱/诈骗比例远低于抽样比例；"
-        "召回率反映“账户级规则覆盖”，不等于实际侦查召回。"
+        "说明：抽样按标签交易保留 + 正常交易抽样生成，洗钱/诈骗比例高于原始数据；"
+        "召回率反映账户级规则覆盖，不等于实际侦查召回。"
     )
 
 
@@ -328,7 +317,8 @@ def _render_graph_and_tabular(catalog: list[dict]) -> None:
                 "需要资金语义特征与 GNN/社区发现，这是后续扩展方向。"
             )
     elif elliptic:
-        st.info("Elliptic 抽样尚未生成：在上方数据集卡片点“生成/刷新抽样”。")
+        # 抽样尚未生成时不额外提示，卡片上已有状态
+        pass
 
     ieee = next((row for row in catalog if row["key"] == "ieee-fraud"), None)
     if ieee:
@@ -352,43 +342,12 @@ def _render_graph_and_tabular(catalog: list[dict]) -> None:
                     st.warning(f"预览失败：{type(exc).__name__}: {exc}")
 
 
-def _render_route() -> None:
-    theme.section("赛场展示路线", "这些数据怎么用、怎么讲")
-    with st.expander("查看建议演示脚本（8 分钟版）", expanded=True):
-        st.markdown(
-            """
-            1. **开场基线（约 1 分钟）**：调度页选“合成 AML 数据集”跑一次，
-               讲“解析 → 建图 → 三条规则 → 报告”，指标页复算精确率/召回率（现成数字）。
-            2. **换真实规模数据（约 2 分钟）**：切到“大数据抽样 · IBM HI-Small”，
-               展示 5 万笔样本建图（6 万+账户）、规则命中 65 个可疑账户，
-               强调 **IBM 官方 8 类洗钱模式全部有命中（8/8）**、强证据命中全部为真实洗钱账户。
-            3. **换场景验证（约 1.5 分钟）**：切到 PaySim 抽样，同一套代码不改，30 秒内出结果，
-               说明“解析/建图/规则与数据源解耦”，可迁移到移动支付场景。
-            4. **能力边界（约 1 分钟）**：打开本页图结构/表格卡片，
-               说明 Elliptic（图数据，后续 GNN/社区发现）与 IEEE-CIS（表格对照）为什么暂不接主流程。
-            5. **收束（约 1 分钟）**：回到“方法与局限”——规则面向国内银行卡场景调参，
-               跨数据集召回受模式覆盖限制；下一步是把工具调用接入主任务队列并支持规则口径配置。
-            """
-        )
-    with st.expander("现场注意事项", expanded=False):
-        st.markdown(
-            """
-            - 原始数据在 `data/new/`（约 2.5 GB），**不上 Git、也不现场扫描**；
-              抽样在 `data/prepared/`（已加入 `.gitignore`），比赛前预生成一次即可。
-            - 抽样固定随机种子（`20261125`），同一机器重复生成结果一致，可复现。
-            - 演示抽样保留了全部标签交易，因此洗钱/诈骗比例高于真实比例；
-              讲解时要主动说明“这是为现场可见性做的抽样，不是真实发案率”。
-            - 大样本建图前先在调度页确认已选择对应抽样，避免把不同样本的图谱混用。
-            """
-        )
-
-
 def render() -> None:
     flash = st.session_state.pop("data_flash", None)
     if flash:
         st.success(flash)
 
-    theme.section("数据资产", "data/new 原始数据集 · 确定性抽样 · 赛场演示路线")
+    theme.section("数据资产", "原始数据集 · 抽样准备 · 规则评测")
 
     summary = _load_summary()
     catalog = _load_catalog()
@@ -407,12 +366,16 @@ def render() -> None:
     )
 
     _render_catalog(catalog)
-    _render_preview(catalog)
-    _render_evaluation(catalog)
+    prepared_ready = any(
+        row["kind"] == "flow" and (row.get("prepared_status") or {}).get("ready")
+        for row in catalog
+    )
+    if prepared_ready:
+        _render_preview(catalog)
+        _render_evaluation(catalog)
     _render_graph_and_tabular(catalog)
-    _render_route()
 
     st.caption(
-        "合规提示：data/new 数据仅用于本地演示与离线评测；"
-        "标签（Is Laundering / isFraud / illicit）只在评测脚本读取，不进入智能体输入。"
+        "合规说明：原始数据只读；标签（Is Laundering / isFraud / illicit）只在离线评测中读取，"
+        "不进入智能体输入。"
     )

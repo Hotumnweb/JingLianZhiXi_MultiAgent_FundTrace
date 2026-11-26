@@ -129,8 +129,8 @@ streamlit run app.py
 ```
 
 - 节点状态：Node1 在线、Node2 在线（GPU）、Node3 在线；
-- 需要演示数据时，在“元智能体调度”下发任务重建；
-- 需要清空演示痕迹：`python scripts/reset_demo_data.py --all`（清理后刷新页面）；
+- 需要数据时，在“数据资产/数据接入”页生成，或直接下发任务建图；
+- 需要清空运行痕迹：`python scripts/reset_demo_data.py --all`（同时清理抽样/清洗产物；保留产物加 `--keep-assets`）；
 - 若 Node2 临时不可用：本机 Ollama 调试模式仍可出报告，或勾选“仅执行图工具分析”。
 
 ## 五、当前 Node2 实测
@@ -149,7 +149,7 @@ streamlit run app.py
 - 页面：左侧“Neo4j 操作台”；
 - 页面顶部显示当前连接地址（`.env` 的 `NEO4J_HOST` + `NEO4J_PORT`，本机回环 `127.0.0.1:7687`）；
 - 预设：图谱规模、Top 入度、快进快出、账户资金往来、约束与索引；
-- 也支持自定义只读 Cypher（禁止写操作，避免误改演示数据）；
+- 也支持自定义只读 Cypher（禁止写操作，避免误改数据）；
 - 结果表可下载 CSV；查询会写入审计日志 `reports/audit/audit.jsonl`；
 - 现场讲法：“图谱不是截图，归集/快进快出规则可以现场用 Cypher 复核。”
 

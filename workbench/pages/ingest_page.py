@@ -92,10 +92,7 @@ def _index_or_zero(values: list[str], target: list[str]) -> int:
 
 def _render_upload() -> None:
     with st.expander("上传本地文件（小文件）", expanded=False):
-        st.caption(
-            "几百 MB 的原始数据建议直接放在 `data/` 目录下，用上方“服务器文件”选择，"
-            "无需上传；上传通道已放宽到 1 GB，但大文件仍推荐服务器方式。"
-        )
+        st.caption("上传文件会保存到 `data/imports/`，可继续做画像与清洗。")
         with st.form("ingest_upload_form", clear_on_submit=True):
             uploaded = st.file_uploader(
                 "选择 CSV / TSV / TXT / Excel",
@@ -195,10 +192,6 @@ def _mapping_inputs(profile: dict, path_key: str) -> dict:
             "收款账号拼接符",
             value=(suggestion.get("to_separator") or ":" if len(to_cols) > 1 else ""),
             key=f"ing_tsep_{mapping_key}",
-        )
-        st.caption(
-            f"自动识别可信度：{suggestion.get('confidence', '未知')}；"
-            f"列数 {len(columns)}。复合账号会自动拼接（如 IBM 的 银行号:账号）。"
         )
 
     mapping = {
@@ -308,7 +301,7 @@ def _render_clean_result(stats: dict) -> None:
 def _render_cleaned_list() -> None:
     cleaned = _cleaned()
     if not cleaned:
-        st.caption("还没有清洗产物。执行一次清洗后，这里会出现可复用的数据集，并自动加入调度页数据源。")
+        st.caption("执行一次清洗后，这里会显示可复用的数据集。")
         return
     st.dataframe(
         [
@@ -351,7 +344,6 @@ def _render_cleaned_list() -> None:
 def _render_pandas_lab() -> None:
     cleaned = _cleaned()
     if not cleaned:
-        st.info("先完成一次清洗，pandas 分析台会读取清洗后的数据。")
         return
     names = [item["name"] for item in cleaned]
     controls = st.columns([2, 1, 1])
@@ -442,10 +434,6 @@ def _render_pandas_lab() -> None:
                 st.dataframe(result.rename("值").reset_index(), width="stretch", hide_index=True)
             else:
                 st.metric("结果", str(result))
-    st.caption(
-        "说明：这是平台内嵌的 pandas 分析能力，无需另开 Jupyter；如需完整交互式分析，"
-        "可对 `data/cleaned/` 下的 CSV 直接用 JupyterLab 打开。"
-    )
 
 
 def render() -> None:
@@ -460,7 +448,7 @@ def render() -> None:
     total_mb = sum(item["size_mb"] for item in catalog)
     metric_cols = st.columns(4)
     metric_cols[0].metric("可接入文件", f"{len(catalog)} 个", border=True)
-    metric_cols[1].metric("数据总量", f"{total_mb / 1024:.2f} GB", border=True)
+    metric_cols[1].metric("可清洗数据量", f"{total_mb / 1024:.2f} GB", border=True)
     metric_cols[2].metric("已清洗数据集", f"{len(cleaned)} 个", border=True)
     metric_cols[3].metric("支持格式", "CSV/TSV/TXT/Excel", border=True)
 
@@ -471,10 +459,7 @@ def render() -> None:
     # ① 选择数据源
     with st.container(border=True):
         st.subheader("① 选择数据源")
-        st.caption(
-            "直接选择服务器上的文件：**几百 MB 原始数据无需上传**，由 Node1 本地流式读取；"
-            "小文件也可以上传到 data/imports/。"
-        )
+        st.caption("支持服务器文件直读与上传；大文件无需上传。")
         labels = {item["path"]: item["label"] for item in catalog}
         paths = [item["path"] for item in catalog]
         if st.session_state.get("ingest_source_path") not in paths:
@@ -507,9 +492,7 @@ def render() -> None:
         header_label = override_cols[2].selectbox(
             "表头", HEADER_OPTIONS, key=f"ing_header_{path_key}"
         )
-        override_cols[3].caption(
-            "自动识别失败时在这里手工修正；识别参数只影响本次清洗，不改原始文件。"
-        )
+        override_cols[3].caption("识别有误时可手工修正。")
         encoding = None if encoding_label == "自动" else encoding_label
         delimiter = DELIMITER_OPTIONS[delimiter_label]
         has_header = None if header_label == "自动" else header_label == "有表头"
@@ -538,12 +521,7 @@ def render() -> None:
                 border=True,
             )
             st.markdown(
-                " ".join(
-                    [
-                        theme.pill(profile.get("dataset_hint_text") or "通用数据", "info"),
-                        theme.pill(f"画像耗时 {profile.get('elapsed_s')} s", "muted"),
-                    ]
-                ),
+                theme.pill(profile.get("dataset_hint_text") or "通用数据", "info"),
                 unsafe_allow_html=True,
             )
             for warning in profile.get("warnings") or []:
@@ -619,7 +597,7 @@ def render() -> None:
             list(SAMPLE_MODE_OPTIONS.keys()),
             index=0,
             key=f"ing_sample_{path_key}",
-            help="均匀抽样会跨整个文件时间范围取样，更适合大数据现场演示；前 N 行最快。",
+            help="均匀抽样覆盖整个文件时间范围；前 N 行最快。",
         )
         drop_self = option_cols[2].toggle("剔除自转账", value=True, key=f"ing_self_{path_key}")
         drop_duplicates = st.toggle("块内去重", value=True, key=f"ing_dup_{path_key}")
@@ -680,25 +658,8 @@ def render() -> None:
         st.subheader("⑤ 已清洗数据集")
         _render_cleaned_list()
 
-    # ⑥ pandas 分析台
-    with st.container(border=True):
-        st.subheader("⑥ pandas 分析台（内嵌，无需 Jupyter）")
-        _render_pandas_lab()
-
-    # ⑦ 说明
-    with st.expander("真实数据接入原则（答辩口径）", expanded=False):
-        st.markdown(
-            """
-            - **原始数据只读**：只读取、不改写、不删除原始文件；清洗结果单独写入 `data/cleaned/`；
-            - **可追溯**：每次清洗生成 `_stats.json`，记录编码、分隔符、字段映射、剔除原因与行数，
-              可用于证据链与复核；
-            - **大文件**：分块流式读取（20 万行/块），几百 MB 文件也不会整表进内存；
-              现场演示建议先清洗 10 万行（约几秒），全量可赛后跑；
-            - **格式混乱**：编码/分隔符/表头/列名自动识别 + 人工修正；复合账号（银行+账号）自动拼接；
-            - **金额与时间**：支持 ￥/逗号/负括号金额，支持字符串日期、Unix 秒/毫秒、步长（小时）；
-            - **标签防泄漏**：`Is Laundering / isFraud` 等标签字段不会进入清洗输出，
-              只允许离线评测脚本单独读取原始文件；
-            - **pandas 分析台**：受限表达式（只允许 df/pd），不开放导入、文件与系统调用；
-              深度分析可对清洗后 CSV 用 JupyterLab 打开。
-            """
-        )
+    # ⑥ 数据探查（有清洗产物时才显示）
+    if cleaned:
+        with st.container(border=True):
+            st.subheader("⑥ 数据探查（pandas）")
+            _render_pandas_lab()
