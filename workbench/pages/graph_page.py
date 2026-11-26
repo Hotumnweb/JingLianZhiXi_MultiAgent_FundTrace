@@ -35,6 +35,15 @@ def render() -> None:
         graph_payload = services.build_graph_payload(
             summary, include_weak=include_weak, include_neighbors=include_neighbors
         )
+        if not graph_payload.get("nodes") and not include_weak:
+            # 清洗后的真实数据可能只有快进快出（辅助证据），强证据为空；
+            # 自动回退到“强证据 + 快进快出”，避免页面空白。
+            fallback = services.build_graph_payload(
+                summary, include_weak=True, include_neighbors=include_neighbors
+            )
+            if fallback.get("nodes"):
+                graph_payload = fallback
+                st.caption("当前数据强证据账户为 0，已自动展示“强证据 + 快进快出”子图。")
     except Exception as exc:  # noqa: BLE001
         st.error(f"读取 Neo4j 子图失败：{type(exc).__name__}: {exc}")
         return

@@ -127,6 +127,7 @@ JingLianZhiXi_MultiAgent_FundTrace/
 ├── docs/
 │   ├── DATA_CLEANING_GUIDE.md   # 真实混乱数据接入/清洗与答辩口径
 │   ├── DATASET_GUIDE.md         # data/new 数据资产使用与赛场展示手册
+│   ├── DEMO_SCRIPT.md           # 完整演示步骤（赛前准备→8 分钟流程→故障预案→Q&A）
 │   ├── platform_guide.md        # 平台功能与现场演示脚本
 │   └── second_node_setup.md     # 第二台 GPU 节点部署手册
 ├── data/
@@ -249,6 +250,10 @@ python scripts/check_llm.py
 
 ## 9. 现场演示（建议 8 分钟）
 
+> **完整逐步操作手册见 [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)**：赛前启动与数据准备、
+> 8 分钟标准流程（每步点哪里/看什么/说什么）、5 分钟精简版、分角色操作卡、故障降级预案、
+> 评委追问口径、演示后清理，全部按现场可照做的方式写清。
+
 1. **调度总览**：三节点分工、Node2 已接入说明、任务队列状态；
 2. **元智能体调度**：提交任务到队列或立即执行，展示阶段卡、日志与报告逐 token 生成；
 3. **任务队列**：执行排队任务、查看调用记录与中间结果、任务重跑；
@@ -262,7 +267,8 @@ python scripts/check_llm.py
 8. **研判报告**：打开报告、下载报告与证据；
 9. **节点与工具**：展示节点状态、Node2 接入计划、调度日志与断网自检；任务完成后可追加侦查指令。
 
-完整讲解词见 [docs/platform_guide.md](docs/platform_guide.md)。
+完整讲解词见 [docs/platform_guide.md](docs/platform_guide.md)；逐步骤操作见
+[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)。
 
 ## 10. 常见问题
 

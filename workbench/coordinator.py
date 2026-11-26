@@ -211,7 +211,28 @@ def _finalize_task(task: dict, final_state: dict, duration: float) -> None:
     )
     task["suspicious"] = len(suspects)
     task["report_path"] = final_state.get("report_path", "")
-    task["evidence_path"] = final_state.get("evidence_path", "")
+    evidence_path = final_state.get("evidence_path", "")
+    # “仅执行图工具分析”任务没有 report_agent，不会自动落盘证据；
+    # 这里补存一份，保证“图数据与工具”页和任务详情随时可复现。
+    if evidence and not evidence_path:
+        try:
+            from tools.report_writer import make_case_id, save_evidence
+
+            case_id = make_case_id()
+            meta = {
+                "数据源": task.get("flow_file", ""),
+                "交易笔数": len(final_state.get("parsed_records") or []),
+                "图谱规模": (
+                    f"{summary.get('accounts', 0)} 个账户 / "
+                    f"{summary.get('transfers', 0)} 条转账"
+                ),
+                "说明": "仅图工具分析任务（未启用 AI 报告），证据已自动归档",
+            }
+            evidence_path = str(save_evidence(case_id, evidence, meta))
+            task["case_id"] = case_id
+        except Exception:  # noqa: BLE001 - 证据归档失败不影响任务完成状态
+            evidence_path = ""
+    task["evidence_path"] = evidence_path
     task["llm_status"] = final_state.get("llm_status", "")
     task["conclusion"] = (final_state.get("conclusion") or "")[:8000]
     task["status"] = tasks.STATUS_COMPLETED
