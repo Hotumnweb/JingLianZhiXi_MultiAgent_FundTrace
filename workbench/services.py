@@ -529,6 +529,156 @@ def prepared_overview(key: str) -> dict:
         return {}
 
 
+# ----------------------------------------------------------------------------
+# 数据接入与清洗：真实混乱大文件的画像、字段映射、流式清洗、pandas 分析台
+# ----------------------------------------------------------------------------
+_DATA_GROUP_LABELS = {
+    "new": "原始大数据集",
+    "samples": "演示脏数据",
+    "imports": "已上传",
+    "cleaned": "已清洗",
+    "prepared": "抽样数据",
+    "synthetic_aml": "内置数据集",
+}
+_DATA_GROUP_ORDER = ["samples", "new", "imports", "cleaned", "prepared", "synthetic_aml", ""]
+
+
+def data_file_catalog() -> list[dict]:
+    """扫描 data/ 下可接入的文件（CSV/TSV/TXT/Excel），带分组与大小。
+
+    只列文件、不读内容：几百 MB 的原始数据也能秒级列出。
+    """
+    from tools.data_cleaning import READABLE_EXTENSIONS
+
+    items: list[dict] = []
+    for path in DATA_DIR.rglob("*"):
+        if not path.is_file() or path.name.startswith("."):
+            continue
+        if path.suffix.lower() not in READABLE_EXTENSIONS:
+            continue
+        try:
+            rel = path.relative_to(PROJECT_ROOT).as_posix()
+        except ValueError:
+            continue
+        parts = rel.split("/")
+        group_key = parts[1] if len(parts) > 1 and parts[0] == "data" else ""
+        size_mb = round(path.stat().st_size / 1024 / 1024, 2)
+        items.append(
+            {
+                "path": rel,
+                "name": path.name,
+                "group_key": group_key,
+                "group": _DATA_GROUP_LABELS.get(group_key, group_key or "其他"),
+                "suffix": path.suffix.lower(),
+                "size_mb": size_mb,
+                "mtime": path.stat().st_mtime,
+                "label": f"{_DATA_GROUP_LABELS.get(group_key, group_key or '其他')}｜"
+                f"{path.name}（{size_mb:g} MB）",
+            }
+        )
+    items.sort(
+        key=lambda item: (
+            _DATA_GROUP_ORDER.index(item["group_key"])
+            if item["group_key"] in _DATA_GROUP_ORDER
+            else 99,
+            -item["size_mb"],
+            item["name"],
+        )
+    )
+    return items
+
+
+def profile_data_file(
+    path: str,
+    encoding: str | None = None,
+    delimiter: str | None = None,
+    has_header: bool | None = None,
+) -> dict:
+    from tools.data_cleaning import profile_file
+
+    return profile_file(
+        path,
+        encoding=encoding,
+        delimiter=delimiter,
+        has_header=has_header,
+    )
+
+
+def preview_clean_file(path: str, profile: dict, mapping: dict, options: dict,
+                       limit: int = 200) -> dict:
+    from tools.data_cleaning import CleanOptions, preview_clean
+
+    return preview_clean(path, profile, mapping, CleanOptions(**options), limit=limit)
+
+
+def clean_data_file(path: str, profile: dict, mapping: dict, options: dict,
+                    progress_callback=None) -> dict:
+    from tools.data_cleaning import CleanOptions, clean_file
+
+    return clean_file(path, profile, mapping, CleanOptions(**options), progress_callback)
+
+
+def cleaned_datasets() -> list[dict]:
+    from tools.data_cleaning import cleaned_datasets as _cleaned
+
+    return _cleaned()
+
+
+def analyze_cleaned_file(path: str, limit: int = 50_000) -> dict:
+    """加载清洗后数据的前 N 行做 pandas 快速画像（金额/时间/Top 账户）。"""
+    import pandas as pd
+
+    from tools.data_cleaning import analyze_frame, resolve_path
+
+    resolved = resolve_path(path)
+    if not resolved.exists():
+        raise FileNotFoundError(f"文件不存在：{path}")
+    frame = pd.read_csv(resolved, nrows=limit, encoding="utf-8-sig")
+    return analyze_frame(frame)
+
+
+def load_cleaned_frame(path: str, limit: int = 20_000):
+    """读取清洗后数据到 DataFrame（供 pandas 分析台使用）。"""
+    import pandas as pd
+
+    from tools.data_cleaning import resolve_path
+
+    resolved = resolve_path(path)
+    if not resolved.exists():
+        raise FileNotFoundError(f"文件不存在：{path}")
+    return pd.read_csv(resolved, nrows=limit, encoding="utf-8-sig")
+
+
+def save_uploaded_data_file(file_name: str, content: bytes) -> dict:
+    """保存上传的原始数据文件到 data/imports/（不做格式校验，交给后续画像/清洗）。"""
+    safe_name = Path(str(file_name)).name
+    if not safe_name or safe_name.startswith("."):
+        raise ValueError("文件名不合法")
+    suffix = Path(safe_name).suffix.lower()
+    from tools.data_cleaning import READABLE_EXTENSIONS
+
+    if suffix not in READABLE_EXTENSIONS:
+        raise ValueError(f"只支持 {', '.join(READABLE_EXTENSIONS)} 文件")
+    if not content:
+        raise ValueError("上传文件为空")
+    target = DATA_DIR / "imports" / safe_name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(content)
+    return {
+        "path": target.relative_to(PROJECT_ROOT).as_posix(),
+        "abs_path": str(target),
+        "size_mb": round(len(content) / 1024 / 1024, 2),
+    }
+
+
+def run_pandas_expression(path: str, expression: str, limit: int = 20_000):
+    """在清洗后数据上执行受限 pandas 表达式（分析台）。"""
+    from tools.data_cleaning import run_pandas_expression as _run
+
+    frame = load_cleaned_frame(path, limit=limit)
+    return _run(frame, expression)
+
+
 def flow_source_groups() -> list[dict]:
     """调度页数据源分组：内置演示 / 大数据抽样 / 已上传。"""
     groups: list[dict] = []
@@ -564,6 +714,27 @@ def flow_source_groups() -> list[dict]:
     prepared_items = _prepared_group_items()
     if prepared_items:
         groups.append({"group": "大数据抽样", "items": prepared_items})
+
+    cleaned_items: list[dict] = []
+    for item in cleaned_datasets():
+        if not item.get("csv_path"):
+            continue
+        try:
+            info = inspect_flow_file(item["csv_path"])
+        except Exception:  # noqa: BLE001
+            continue
+        cleaned_items.append(
+            {
+                "path": item["csv_path"],
+                "label": f"已清洗｜{item['name']} · {info['rows']:,} 条",
+                "group": "已清洗数据",
+                "rows": info["rows"],
+                "kind": "cleaned",
+                "dataset_key": "",
+            }
+        )
+    if cleaned_items:
+        groups.append({"group": "已清洗数据", "items": cleaned_items})
 
     import_items: list[dict] = []
     imports_dir = DATA_DIR / "imports"

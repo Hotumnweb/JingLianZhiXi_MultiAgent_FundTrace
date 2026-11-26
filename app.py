@@ -19,6 +19,7 @@ from workbench import services, theme
 from workbench.pages import (
     data_page,
     graph_page,
+    ingest_page,
     meta_agent_page,
     metrics,
     neo4j_console,
@@ -48,6 +49,7 @@ PAGES = {
     "元智能体自主分析": meta_agent_page.render,
     "任务队列": tasks_page.render,
     "数据资产": data_page.render,
+    "数据接入": ingest_page.render,
     "图数据与工具": graph_page.render,
     "Neo4j 操作台": neo4j_console.render,
     "规则与指标": metrics.render,

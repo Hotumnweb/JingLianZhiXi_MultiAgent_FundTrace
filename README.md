@@ -1,7 +1,7 @@
 # 警链智析-元智能体驱动的涉诈资金穿透研判系统
 
 > 项目仓库：<https://github.com/Hotumnweb/JingLianZhiXi_MultiAgent_FundTrace>
-> 当前版本：**v1.0 三机联调 + 元智能体 + 数据资产**
+> 当前版本：**v1.1 三机联调 + 元智能体 + 数据资产 + 真实数据接入清洗**
 > 定位：用元智能体做诈骗资金数据分析，第一台是调度中心，第二台提供 GPU 算力，第三台提供工具与图数据。
 
 ## 1. 三机架构
@@ -39,6 +39,7 @@ Neo4j 承担。比赛现场可换成固定内网，只改 `.env`。
 | 元智能体自主分析 | Qwen3.5 工具调用实验台：模型自主选择归集/快进快出/资金往来/规则指标工具，Node1/Node3 执行并回传，展示决策轨迹 |
 | 任务队列 | 任务排队/执行状态、子智能体调用记录、中间结果汇总、任务详情与重跑 |
 | 数据资产 | data/new 大数据集目录、确定性抽样生成、样本预览、规则评测与赛场演示路线 |
+| 数据接入 | 真实混乱数据接入：自动识编码/分隔符/列名、字段映射、复合账号、流式清洗、pandas 分析台 |
 | 图数据与工具 | Node3 Neo4j 子图、环形链/归集明细、证据强度排行、Neo4j 复核查询 |
 | Neo4j 操作台 | 现场执行只读 Cypher：图谱规模、Top 入度、快进快出、账户资金往来、约束与索引 |
 | 规则与指标 | 三条图规则口径、当前命中、现场重算精确率/召回率/团伙召回 |
@@ -59,7 +60,7 @@ cd /d E:\JingLianZhiXi_MultiAgent_FundTrace
 streamlit run app.py
 ```
 
-本地实测：平台十页 AppTest 全部无异常；完整流式链路可产生 892 个 token 事件。
+本地实测：平台十一页 AppTest 全部无异常；完整流式链路可产生 892 个 token 事件。
 **跨机实测（2026-10-26）**：第一台解析 42,175 条流水 + 建图 + 图分析，第二台 RTX 5060
 生成研判报告耗时 **28.65 秒（34.53 tok/s）**，全链路 **71.9 秒**。
 **元智能体工具调用实测**：Qwen3.5 自主调用归集查询 + 快进快出查询，2 轮完成，约 16 秒。
@@ -77,9 +78,14 @@ streamlit run app.py
   [docs/runbook_manual_operation.md](docs/runbook_manual_operation.md) 的 2.1.1 节配置；
 - 本次联调已生成一份报告与图谱；比赛前可运行 `python scripts/reset_demo_data.py --all`
   恢复干净环境（图谱、报告、任务、上传流水全部清空），由队员现场重新建图、生成报告；
+- **数据接入**：真实一手数据不必上传——直接选 `data/new` 原始文件（几百 MB），自动识别
+  编码（含 GBK/GB18030）、分隔符（逗号/分号/Tab/竖线）、表头与列名，支持“银行+账号”复合账号、
+  多格式时间与 ￥/千分位金额；流式清洗后输出统一流水并建图。也内置 `data/samples/messy_bank_flow.csv`
+  脏数据样例（GBK、分号、￥、混合日期、空账号、自转账、重复行）用于现场演示；
+  详见 [docs/DATA_CLEANING_GUIDE.md](docs/DATA_CLEANING_GUIDE.md)；
 - **数据资产**：`data/new/` 已落地 5 套公开大数据集（IBM AML HI/LI、PaySim、Elliptic、
   IEEE-CIS，约 2.5 GB，git 忽略），由 `scripts/prepare_datasets.py` 生成确定性抽样到
-  `data/prepared/` 后现场使用；平台新增“数据资产”页统一管理与评测，详见
+  `data/prepared/` 后现场使用；平台“数据资产”页统一管理与评测，详见
   [docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)；
 
 ## 4. 目录结构
@@ -94,7 +100,7 @@ JingLianZhiXi_MultiAgent_FundTrace/
 │   ├── coordinator.py           # Supervisor 调度执行、调用记录、中间结果、追加指令
 │   ├── runner.py                # 流式编排器（阶段 + token 事件）
 │   ├── graph_view.py            # Plotly + NetworkX 资金网络图
-│   └── pages/                   # 页面：调度/数据资产/图谱/操作台/指标/报告/节点等
+│   └── pages/                   # 页面：调度/数据资产/数据接入/图谱/操作台/指标/报告/节点等
 ├── main.py                      # 命令行入口（--no-report / --check-llm）
 ├── llms/remote_llm.py           # Ollama 原生 API（生成 / 流式生成 / 健康检查）
 ├── tools/
@@ -102,11 +108,13 @@ JingLianZhiXi_MultiAgent_FundTrace/
 │   ├── graph_query.py           # 建图、三条规则、环检测、子图查询
 │   ├── neo4j_config.py          # Neo4j 连接配置（IP + 端口，兼容旧 NEO4J_URI）
 │   ├── dataset_catalog.py       # 数据资产目录（data/new 数据集元数据与抽样状态）
+│   ├── data_cleaning.py         # 真实混乱数据画像/映射/流式清洗/pandas 分析
 │   └── report_writer.py         # 报告/证据落盘 + 兜底报告
 ├── agents/                      # parsing / graph / report 智能体
 ├── supervisor/supervisor_node.py
 ├── scripts/
 │   ├── prepare_datasets.py      # 大数据集确定性抽样（data/prepared）
+│   ├── clean_data.py            # 真实数据流式清洗（data/cleaned）
 │   ├── evaluate_prepared.py     # 抽样样本规则指标复算（含 IBM 模式覆盖）
 │   ├── reset_demo_data.py       # 清理报告/证据/缓存，可选清空 Neo4j
 │   ├── evaluate_on_synthetic_aml.py
@@ -117,14 +125,17 @@ JingLianZhiXi_MultiAgent_FundTrace/
 │   ├── open_node1_ports.ps1     # 管理员放行 8501/7474/7687（第二台访问平台与 Neo4j）
 │   └── second_node_setup.ps1
 ├── docs/
+│   ├── DATA_CLEANING_GUIDE.md   # 真实混乱数据接入/清洗与答辩口径
 │   ├── DATASET_GUIDE.md         # data/new 数据资产使用与赛场展示手册
 │   ├── platform_guide.md        # 平台功能与现场演示脚本
 │   └── second_node_setup.md     # 第二台 GPU 节点部署手册
 ├── data/
 │   ├── sample_flow.csv          # 100 条演示数据
+│   ├── samples/                 # 演示脏数据（GBK/分号/￥/混合日期等）
 │   ├── synthetic_aml/           # 合成 AML 数据集（CC0）
 │   ├── new/                     # 5 套公开大数据集原始文件（约 2.5 GB，git 忽略）
-│   └── prepared/                # 抽样样本（生成物，git 忽略）
+│   ├── prepared/                # 抽样样本（生成物，git 忽略）
+│   └── cleaned/                 # 清洗产物（生成物，git 忽略）
 ├── reports/                     # 运行产物（报告 + 证据 + 调度日志，git 忽略）
 └── runtime/tasks/               # 任务队列与任务记录（git 忽略）
 ```
@@ -159,6 +170,16 @@ python scripts/evaluate_prepared.py --dataset ibm-hi-small   # 建图后复算�
 详细说明、实测数字与 8 分钟展示脚本见 [docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)；
 平台“数据资产”页提供同样的目录、抽样、预览与评测入口。
 
+真实混乱数据的接入与清洗（自动识编码/分隔符/列名 → 字段映射 → 流式清洗 → 建图）：
+
+```powershell
+python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000
+python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output messy_demo
+```
+
+详见 [docs/DATA_CLEANING_GUIDE.md](docs/DATA_CLEANING_GUIDE.md)；平台“数据接入”页提供同样的
+画像、映射、清洗、进度与 pandas 分析台。
+
 ## 6. 图规则与实测指标
 
 | 规则 | 判定条件 | 定位 |
@@ -186,6 +207,7 @@ python scripts/check_neo4j.py                 # 检查 Neo4j 连接（IP + 端�
 python scripts/preflight_check.py             # 演示前自检
 python scripts/evaluate_on_synthetic_aml.py   # 规则评测
 python scripts/prepare_datasets.py --all      # 生成 data/new 大数据集抽样（约 45 秒）
+python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000
 python scripts/evaluate_prepared.py --dataset ibm-hi-small   # 抽样样本指标复算
 python scripts/reset_demo_data.py --all       # 清空图谱/报告/任务/上传流水
 ```
@@ -232,10 +254,13 @@ python scripts/check_llm.py
 3. **任务队列**：执行排队任务、查看调用记录与中间结果、任务重跑；
 4. **数据资产**：展示 data/new 数据集目录，切 IBM HI-Small / PaySim 抽样再跑一次，
    展示“换数据源不改代码”与抽样评测（详见 [docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)）；
-5. **图数据与工具**：展示 Node3 的图规则结果与资金网络；
-6. **规则与指标**：现场重算精确率/召回率与团伙级召回；
-7. **研判报告**：打开报告、下载报告与证据；
-8. **节点与工具**：展示节点状态、Node2 接入计划、调度日志与断网自检；任务完成后可追加侦查指令。
+5. **数据接入**：现场拿 `data/new` 原始 453 MB IBM 流水（或 `data/samples` 脏数据）走一遍
+   自动识别 → 字段映射 → 流式清洗 → 建图，回答“是不是只会用内置数据”的质疑
+   （详见 [docs/DATA_CLEANING_GUIDE.md](docs/DATA_CLEANING_GUIDE.md)）；
+6. **图数据与工具**：展示 Node3 的图规则结果与资金网络；
+7. **规则与指标**：现场重算精确率/召回率与团伙级召回；
+8. **研判报告**：打开报告、下载报告与证据；
+9. **节点与工具**：展示节点状态、Node2 接入计划、调度日志与断网自检；任务完成后可追加侦查指令。
 
 完整讲解词见 [docs/platform_guide.md](docs/platform_guide.md)。
 
@@ -248,6 +273,9 @@ python scripts/check_llm.py
 | Node3 显示离线 | Neo4j 未启动，或 `.env` 的 `NEO4J_HOST` / `NEO4J_PORT` 与实际监听不一致；启动 Neo4j 后跑 `python scripts/check_neo4j.py` 验证 |
 | 第二台打不开 Neo4j Browser | Neo4j 需 `server.default_listen_address=0.0.0.0` 并重启；第一台管理员运行 `scripts/open_node1_ports.ps1` 放行 7474/7687 |
 | AI 报告很慢 | 第二台 GPU 当前约 30 秒；若回退到本机 CPU 调试约 2~4 分钟 |
+| 上传大文件失败 | 几百 MB 原始数据不要上传：直接放到 `data/` 下，在“数据接入”页选“服务器文件”；上传限制已放宽到 1 GB（改 `.streamlit/config.toml` 后需重启平台） |
+| 数据格式不识别/列名对不上 | 在“数据接入”页手工修正编码/分隔符/表头，并手工选择时间/金额/付款/收款列；复合账号可多选两列 |
+| 清洗后建图没有可疑账户 | 检查时间范围/账号映射是否正确；内置演示或 `data/prepared` 抽样更适合快速演示规则命中 |
 | 报告 content 为空 | Qwen3.5 必须 `LLM_THINK=false`（`connect_node2.py` 会自动写入） |
 | 报告状态 fallback | AI 不可达，自动降级为规则模板报告 |
 | 需要重置演示环境 | `python scripts/reset_demo_data.py --all`（清理后刷新页面） |

@@ -5,6 +5,7 @@ langchain-openai
 langchain-neo4j
 neo4j
 pandas
+openpyxl
 plotly
 networkx
 psutil

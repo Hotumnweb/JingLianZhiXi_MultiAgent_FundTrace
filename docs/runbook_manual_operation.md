@@ -189,6 +189,29 @@ python scripts/prepare_datasets.py --dataset ibm-hi-small
   或命令行 `python scripts/evaluate_prepared.py --dataset ibm-hi-small`；
 - 详细说明与 8 分钟展示脚本见 [docs/DATASET_GUIDE.md](DATASET_GUIDE.md)。
 
+### 2.6 真实一手数据接入（赛前重点演示）
+
+现场如果评委问“真实数据又大又乱怎么办”，直接演示：
+
+1. 打开“**数据接入**”页；
+2. 数据源选 `data/new/one/HI-Small_Trans.csv`（453.6 MB 原始流水，无需上传）；
+3. 平台自动识别：编码 utf-8-sig、逗号分隔、11 列、有表头；“银行号+账号”自动拼成复合账号；
+4. 点“预览清洗结果”确认映射 → “执行清洗”（默认 10 万行，约 2 秒）；
+5. 清洗完成点“在调度页用这份数据建图” → 跑规则 → 生成报告；
+6. 想演示“格式混乱”时，选 `data/samples/messy_bank_flow.csv`：
+   GBK 编码 + 分号分隔 + ￥金额 + 混合日期 + 空账号 + 自转账 + 重复行，清洗后剔除原因全部可查。
+
+命令行等价（赛前预跑）：
+
+```powershell
+python scripts/clean_data.py --input data/new/one/HI-Small_Trans.csv --rows 100000
+python scripts/clean_data.py --input data/samples/messy_bank_flow.csv --output messy_demo
+```
+
+- 清洗产物在 `data/cleaned/`（git 忽略），每次生成 `_stats.json` 清洗报告；
+- 详细能力、实测数字与答辩口径见 [docs/DATA_CLEANING_GUIDE.md](DATA_CLEANING_GUIDE.md)；
+- pandas 分析台在“数据接入”页底部，可做金额分布/时间趋势/Top 账户与受限 pandas 表达式查询。
+
 ---
 
 ## 三、亲手跑一次完整任务
@@ -278,6 +301,8 @@ python scripts\reset_demo_data.py --all
 | Neo4j 监听配置 | `D:\softwaredata\neo4j-community\conf\neo4j.conf` 的 `server.default_listen_address` |
 | 数据资产抽样 | `scripts/prepare_datasets.py` → `data/prepared/` |
 | 数据资产使用手册 | `docs/DATASET_GUIDE.md` |
+| 数据接入与清洗 | `tools/data_cleaning.py`、`scripts/clean_data.py`、`workbench/pages/ingest_page.py` |
+| 数据接入手册 | `docs/DATA_CLEANING_GUIDE.md` |
 | 第二台说明 | `docs/NETWORK_NODE2.md` |
 | 平台使用/演示稿 | `docs/platform_guide.md` |
 | 配置模板 | `.env.example`（实际配置在 `.env`，不提交 Git） |

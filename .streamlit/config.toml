@@ -33,3 +33,5 @@ showWidgetBorder = true
 # 允许第二台电脑访问平台大屏
 address = "0.0.0.0"
 headless = false
+# 放宽上传限制（1 GB）；几百 MB 原始数据优先用“服务器文件”方式接入，不走上传
+maxUploadSize = 1024
